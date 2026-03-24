@@ -9,7 +9,13 @@ const __dirname = path.dirname(__filename);
 function startOfDayIso(date = new Date()) {
   const local = new Date(date);
   local.setHours(0, 0, 0, 0);
-  return local.toISOString();
+  const year = local.getFullYear();
+  const month = String(local.getMonth() + 1).padStart(2, "0");
+  const day = String(local.getDate()).padStart(2, "0");
+  const hours = String(local.getHours()).padStart(2, "0");
+  const minutes = String(local.getMinutes()).padStart(2, "0");
+  const seconds = String(local.getSeconds()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
 function mapRow(columns, values) {
