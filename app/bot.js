@@ -200,18 +200,11 @@ function formatAccessStatus(access) {
   }
 
   if (access.isTrial) {
-    return [
-      "Пробный период активен",
-      "Первые 14 дней бесплатно",
-      `Пробный доступ до: ${formatDate(access.trialEndsAt)}`,
-      `Осталось дней: ${access.remainingDays}`,
-      "",
-      "После пробного периода доступ стоит 300 ₽ в месяц."
-    ].join("\n");
+    return "Доступ активен.";
   }
 
   return [
-    "Пробный период закончился",
+    "Доступ к боту приостановлен.",
     "Чтобы продолжить пользоваться ботом, нужна подписка 300 ₽ в месяц.",
     "",
     "Оплатить можно внутри Telegram через Stars."
@@ -466,7 +459,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
 
     await ctx.reply(
       [
-        "Пробный период закончился.",
+        "Доступ к боту приостановлен.",
         "Полный доступ к анализу еды, дневнику, меню и вопросам стоит 300 ₽ в месяц.",
         "",
         formatAccessStatus(access)
@@ -514,8 +507,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
           ? "3. Нажми «Еще», если нужен рацион на день, история или вопрос боту."
           : "4. Нажми «Еще», если нужен рацион на день, история или вопрос боту.",
         "",
-        `Текущий профиль: ${profile.display_name}`,
-        access?.isTrial ? `Пробный доступ: еще ${access.remainingDays} дн.` : access?.isPaid ? `Подписка активна до ${formatDate(access.subscriptionEndsAt)}` : "Доступ: пробный период завершен"
+        `Текущий профиль: ${profile.display_name}`
       ].join("\n"),
       createHomeMenu(profile)
     );
@@ -565,7 +557,6 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
   }
 
   async function showMoreGuide(ctx) {
-    const { access } = getProfileAndAccess(ctx);
     return ctx.reply(
       [
         "Здесь дополнительные полезные функции:",
@@ -573,9 +564,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
         "Меню на день: готовый рацион под твой профиль.",
         "История записей: последние приемы пищи и возможность удалить лишнее.",
         "Подписка: статус доступа и информация по тарифу.",
-        "Задать вопрос: можно спросить про питание, белок, дефицит, продукты и т.д.",
-        "",
-        access?.isTrial ? `Сейчас у тебя идет триал, осталось ${access.remainingDays} дн.` : access?.isPaid ? "Подписка активна." : "Триал завершен."
+        "Задать вопрос: можно спросить про питание, белок, дефицит, продукты и т.д."
       ].join("\n"),
       createMoreMenu()
     );
