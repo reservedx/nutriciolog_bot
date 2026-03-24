@@ -57,6 +57,7 @@ function createStartMenu(profile) {
 function createAddFoodMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("Фото еды", "guide:add_food_photo")],
+    [Markup.button.callback("Анализ этикетки", "guide:label_photo")],
     [Markup.button.callback("Текстом", "menu:meal_text")],
     [Markup.button.callback("В меню", "menu:home")]
   ]);
@@ -159,6 +160,32 @@ function formatNutritionReport(report, mealType = "не указано") {
     `Совет: ${report.advice}`,
     "",
     "Важно: это ориентировочная оценка, а не медицинская рекомендация."
+  ].join("\n");
+}
+
+function formatLabelReport(report) {
+  const pros = report.pros.length > 0 ? report.pros.map((item) => `- ${item}`).join("\n") : "- явных плюсов не выделил";
+  const cons = report.cons.length > 0 ? report.cons.map((item) => `- ${item}`).join("\n") : "- явных минусов не выделил";
+
+  return [
+    `Продукт: ${report.productName}`,
+    `Порция / база расчета: ${report.servingSize}`,
+    `Калории: ~${round(report.calories)} ккал`,
+    `Белки: ~${round(report.protein)} г`,
+    `Жиры: ~${round(report.fat)} г`,
+    `Углеводы: ~${round(report.carbs)} г`,
+    `Сахар: ${report.sugar}`,
+    "",
+    `Коротко о составе: ${report.ingredientsSummary}`,
+    "",
+    "Плюсы:",
+    pros,
+    "",
+    "Минусы:",
+    cons,
+    "",
+    `Вердикт: ${report.verdict}`,
+    `Уверенность: ${report.confidence}`
   ].join("\n");
 }
 
@@ -493,20 +520,27 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     const { profile, access } = getProfileAndAccess(ctx);
     return ctx.reply(
       [
-        "Это бот-нутрициолог, и вот как им пользоваться.",
+        "Привет! 👋",
+        "Я — твой персональный нутрициолог в Telegram 🥑",
         "",
-        profile.daily_calories
-          ? "Профиль уже настроен, так что можно сразу вести дневник и смотреть прогресс."
-          : "1. Нажми «Начать», если хочешь настроить профиль и получить свою норму.",
-        profile.daily_calories
-          ? "1. Нажми «Добавить еду», если хочешь внести прием пищи по фото или текстом."
-          : "2. Нажми «Добавить еду», если хочешь внести прием пищи по фото или текстом.",
-        profile.daily_calories
-          ? "2. Нажми «Мой день», чтобы посмотреть калории, разбор, вес и замеры."
-          : "3. Нажми «Мой день», чтобы посмотреть калории, разбор, вес и замеры.",
-        profile.daily_calories
-          ? "3. Нажми «Еще», если нужен рацион на день, история или вопрос боту."
-          : "4. Нажми «Еще», если нужен рацион на день, история или вопрос боту.",
+        "Помогу тебе легко контролировать питание, считать калории и БЖУ, отслеживать вес и видеть реальный прогресс — без жестких диет и заморочек.",
+        "",
+        "Вот что я умею:",
+        "📸 Анализировать еду по фото или описанию",
+        "📊 Считать калории и БЖУ по фото тарелки или текстом, вести дневник",
+        "📈 Показывать сводку за день и давать разбор",
+        "⚖️ Отслеживать вес и замеры тела",
+        "🧠 Отвечать на вопросы по питанию",
+        "🍽 Подбирать меню на день",
+        "🛒 Проверять состав продуктов в магазине",
+        "",
+        "🚀 С чего начать:",
+        "",
+        "Нажми «Настроить профиль» — я рассчитаю твою норму",
+        "Добавь первый прием пищи",
+        "Загляни в «Мой день», чтобы увидеть результат",
+        "",
+        "👇 Начни прямо сейчас — добавь свою первую еду",
         "",
         `Текущий профиль: ${profile.display_name}`
       ].join("\n"),
@@ -537,6 +571,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
         "Как добавить еду:",
         "",
         "Фото еды: если хочешь, чтобы бот сам распознал блюдо по изображению.",
+        "Анализ этикетки: если хочешь проверить состав продукта в магазине.",
         "Текстом: если проще написать, что ты съел, например «курица, рис и салат»."
       ].join("\n"),
       createAddFoodMenu()
@@ -666,6 +701,16 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     profileWizard.delete(String(ctx.from.id));
     pendingMode.set(String(ctx.from.id), "meal_text");
     return ctx.reply("Опиши, что ты съел. Например: «съел курицу, рис и салат».", createAddFoodMenu());
+  }
+
+  async function promptLabelMode(ctx) {
+    if (!(await requireActiveAccess(ctx))) return;
+    profileWizard.delete(String(ctx.from.id));
+    pendingMode.set(String(ctx.from.id), "label_photo");
+    return ctx.reply(
+      "Пришли фото этикетки или состава продукта, и я коротко разберу КБЖУ, состав и скажу, стоит ли покупать.",
+      createAddFoodMenu()
+    );
   }
 
   async function promptWeightMode(ctx) {
@@ -835,7 +880,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
         "Я постарался упростить навигацию.",
         "",
         "Начать: настройка профиля и нормы, если профиль еще не заполнен.",
-        "Добавить еду: фото или текст.",
+        "Добавить еду: фото, этикетка или текст.",
         "Мой день: сводка, вес, замеры и прогресс.",
         "Еще: меню на день, история, подписка и вопросы.",
         "",
@@ -989,6 +1034,10 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     await ctx.answerCbQuery();
     await ctx.reply("Теперь просто пришли фото еды следующим сообщением, и я его разберу.", createAddFoodMenu());
   });
+  bot.action("guide:label_photo", async (ctx) => {
+    await ctx.answerCbQuery();
+    await promptLabelMode(ctx);
+  });
 
   bot.action("menu:profile", async (ctx) => { await ctx.answerCbQuery(); await showProfile(ctx); });
   bot.action("menu:today", async (ctx) => { await ctx.answerCbQuery(); await showToday(ctx); });
@@ -1123,9 +1172,9 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
 
   bot.on("photo", async (ctx) => {
     if (!(await requireActiveAccess(ctx))) return;
+    const currentMode = pendingMode.get(String(ctx.from.id));
     pendingMode.delete(String(ctx.from.id));
     const profile = databaseService.ensureUser(ctx.from);
-    await ctx.reply("Смотрю на фото, считаю КБЖУ и записываю прием пищи...");
 
     try {
       const photo = ctx.message.photo.at(-1);
@@ -1134,6 +1183,15 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
       }
 
       const imageUrl = await getTelegramFileUrl(telegramBotToken, photo.file_id);
+
+      if (currentMode === "label_photo") {
+        await ctx.reply("Смотрю на этикетку и готовлю короткий разбор...");
+        const report = await nutritionService.analyzeProductLabel(imageUrl, profile);
+        await ctx.reply(formatLabelReport(report), createAddFoodMenu());
+        return;
+      }
+
+      await ctx.reply("Смотрю на фото, считаю КБЖУ и записываю прием пищи...");
       const report = await nutritionService.analyzeMealImage(imageUrl);
       const savedEntry = databaseService.saveMealEntry({
         user_id: profile.id,

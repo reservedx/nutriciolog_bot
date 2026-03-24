@@ -35,6 +35,45 @@ const mealSchema = {
   ]
 };
 
+const productLabelSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    productName: { type: "string" },
+    servingSize: { type: "string" },
+    calories: { type: "number" },
+    protein: { type: "number" },
+    fat: { type: "number" },
+    carbs: { type: "number" },
+    sugar: { type: "string" },
+    ingredientsSummary: { type: "string" },
+    pros: {
+      type: "array",
+      items: { type: "string" }
+    },
+    cons: {
+      type: "array",
+      items: { type: "string" }
+    },
+    verdict: { type: "string" },
+    confidence: { type: "string" }
+  },
+  required: [
+    "productName",
+    "servingSize",
+    "calories",
+    "protein",
+    "fat",
+    "carbs",
+    "sugar",
+    "ingredientsSummary",
+    "pros",
+    "cons",
+    "verdict",
+    "confidence"
+  ]
+};
+
 const russianSystemPrompt = [
   "Ты ИИ-нутрициолог и помощник по питанию.",
   "Всегда отвечай только на русском языке.",
@@ -111,6 +150,36 @@ export function createNutritionService({ apiKey, model }) {
           }
         ],
         text: { format: { type: "json_schema", name: "meal_text_analysis", schema: mealSchema, strict: true } }
+      });
+
+      return result.output_parsed;
+    },
+
+    async analyzeProductLabel(imageUrl, profile) {
+      const result = await client.responses.parse({
+        model,
+        input: [
+          {
+            role: "system",
+            content: [
+              {
+                type: "input_text",
+                text: `${russianSystemPrompt} Пользователь прислал фото этикетки продукта из магазина. Вытащи из фото название продукта, примерное КБЖУ, кратко оцени состав и дай короткий вердикт: стоит покупать или лучше поискать замену. Если данных на фото не хватает, честно укажи это.`
+              }
+            ]
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: `Профиль пользователя:\n${profileToText(profile)}\n\nПосмотри на фото этикетки и дай очень короткий практический разбор для покупки в магазине.`
+              },
+              { type: "input_image", image_url: imageUrl, detail: "high" }
+            ]
+          }
+        ],
+        text: { format: { type: "json_schema", name: "product_label_analysis", schema: productLabelSchema, strict: true } }
       });
 
       return result.output_parsed;
