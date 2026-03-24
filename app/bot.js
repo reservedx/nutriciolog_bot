@@ -77,7 +77,7 @@ function createMoreMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("Меню на день", "menu:mealplan")],
     [Markup.button.callback("История записей", "menu:history")],
-    [Markup.button.callback("Задать вопрос", "menu:ask")],
+    [Markup.button.callback("Задать вопрос нутрициологу", "menu:ask")],
     [Markup.button.callback("В меню", "menu:home")]
   ]);
 }
@@ -599,7 +599,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
         "Меню на день: готовый рацион под твой профиль.",
         "История записей: последние приемы пищи и возможность удалить лишнее.",
         "Подписка: статус доступа и информация по тарифу.",
-        "Задать вопрос: можно спросить про питание, белок, дефицит, продукты и т.д."
+        "Задать вопрос нутрициологу: можно спросить про питание, белок, дефицит, продукты и т.д."
       ].join("\n"),
       createMoreMenu()
     );
