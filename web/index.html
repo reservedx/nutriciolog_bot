@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nutriciolog — веб-кабинет</title>
+    <link rel="stylesheet" href="/web/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <p class="eyebrow">Nutriciolog Platform</p>
+        <h1>Личный кабинет питания и прогресса</h1>
+        <p class="lead">
+          Сайт и Telegram-бот работают на одной базе данных. Здесь можно открыть профиль, посмотреть дневник,
+          историю веса, замеры и использовать те же данные, что и в боте.
+        </p>
+      </section>
+
+      <section class="login-card">
+        <label for="telegramUserId">Telegram ID</label>
+        <div class="login-row">
+          <input id="telegramUserId" type="text" placeholder="Например: 742896049" />
+          <button id="loadDashboard">Открыть кабинет</button>
+        </div>
+        <p class="hint">
+          Пока это технический вход для MVP. Следующий шаг архитектуры — авторизация через Telegram Login и единый
+          аккаунт без ручного ввода ID.
+        </p>
+        <p id="statusLine" class="status">Введи свой Telegram ID, чтобы открыть общий кабинет.</p>
+      </section>
+
+      <section id="dashboard" class="dashboard hidden">
+        <div class="grid">
+          <article class="card">
+            <h2>Профиль</h2>
+            <div id="profileBlock" class="stack"></div>
+          </article>
+
+          <article class="card">
+            <h2>Сегодня</h2>
+            <div id="todayBlock" class="stack"></div>
+          </article>
+
+          <article class="card">
+            <h2>Прогресс</h2>
+            <div id="progressBlock" class="stack"></div>
+          </article>
+
+          <article class="card">
+            <h2>Обновить вес</h2>
+            <form id="weightForm" class="stack">
+              <input id="weightValue" type="number" step="0.1" min="0" placeholder="76.4" />
+              <button type="submit">Сохранить вес</button>
+            </form>
+          </article>
+
+          <article class="card">
+            <h2>Добавить замеры</h2>
+            <form id="measurementForm" class="stack">
+              <input id="waistValue" type="number" step="0.1" min="0" placeholder="Талия" />
+              <input id="thighValue" type="number" step="0.1" min="0" placeholder="Нога" />
+              <input id="armValue" type="number" step="0.1" min="0" placeholder="Рука" />
+              <button type="submit">Сохранить замеры</button>
+            </form>
+          </article>
+
+          <article class="card wide">
+            <h2>История питания</h2>
+            <div id="historyBlock" class="stack"></div>
+          </article>
+
+          <article class="card">
+            <h2>Журнал веса</h2>
+            <div id="weightBlock" class="stack"></div>
+          </article>
+
+          <article class="card">
+            <h2>Журнал замеров</h2>
+            <div id="measurementBlock" class="stack"></div>
+          </article>
+
+          <article class="card wide">
+            <h2>Задать вопрос нутрициологу</h2>
+            <form id="askForm" class="stack">
+              <textarea id="questionValue" rows="4" placeholder="Например: как добрать белок без протеина?"></textarea>
+              <button type="submit">Получить ответ</button>
+            </form>
+            <div id="answerBlock" class="stack"></div>
+          </article>
+
+          <article class="card wide">
+            <h2>Меню на день</h2>
+            <button id="loadMealPlan">Сгенерировать меню</button>
+            <div id="mealPlanBlock" class="stack"></div>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <script src="/web/app.js" type="module"></script>
+  </body>
+</html>

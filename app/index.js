@@ -1,7 +1,8 @@
-﻿import { config } from "./config.js";
+import { config } from "./config.js";
 import { createBot } from "./bot.js";
 import { createDatabaseService } from "./database.js";
 import { createNutritionService } from "./services/nutrition.js";
+import { createWebServer } from "./webServer.js";
 
 async function main() {
   console.log(`Using database path: ${config.databasePath}`);
@@ -28,20 +29,32 @@ async function main() {
     }
   });
 
+  const webServer = createWebServer({
+    port: config.port,
+    databaseService,
+    nutritionService
+  });
+
+  webServer.start();
   await bot.launch();
-  console.log(`Bot is running in polling mode on port hint ${config.port}`);
+  console.log(`Bot is running in polling mode on port ${config.port}`);
 
   process.once("SIGINT", () => {
+    webServer.stop();
     databaseService.close();
     bot.stop("SIGINT");
   });
 
   process.once("SIGTERM", () => {
+    webServer.stop();
     databaseService.close();
     bot.stop("SIGTERM");
   });
 
-  process.once("exit", () => databaseService.close());
+  process.once("exit", () => {
+    webServer.stop();
+    databaseService.close();
+  });
 }
 
 main().catch((error) => {

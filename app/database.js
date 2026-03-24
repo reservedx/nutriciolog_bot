@@ -188,6 +188,10 @@ export async function createDatabaseService({ databasePath }) {
   }
 
   return {
+    getUserByTelegramId(telegramUserId) {
+      return getUserByTelegramId(telegramUserId);
+    },
+
     ensureUser(telegramUser) {
       const telegramUserId = String(telegramUser.id);
       const displayName =
@@ -581,6 +585,21 @@ export async function createDatabaseService({ databasePath }) {
       console.log(`Recent meals for user ${telegramUserId}: ${meals.length}`);
 
       return { user, meals };
+    },
+
+    getDashboard(telegramUserId) {
+      const profile = getUserByTelegramId(telegramUserId);
+      if (!profile) return null;
+
+      return {
+        profile,
+        today: this.getTodaySummary(telegramUserId),
+        recentMeals: this.getRecentMeals(telegramUserId, 10),
+        weightLogs: this.getWeightLogs(telegramUserId, 10),
+        measurementLogs: this.getMeasurementLogs(telegramUserId, 10),
+        weightProgress: this.getWeightProgress(telegramUserId),
+        measurementProgress: this.getMeasurementProgress(telegramUserId)
+      };
     },
 
     close() {
