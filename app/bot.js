@@ -50,7 +50,7 @@ function createStartMenu(profile) {
     rows.push([Markup.button.callback("Показать профиль", "menu:profile")]);
   }
 
-  rows.push([Markup.button.callback("Назад", "menu:home")]);
+  rows.push([Markup.button.callback("В меню", "menu:home")]);
   return Markup.inlineKeyboard(rows);
 }
 
@@ -58,7 +58,7 @@ function createAddFoodMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("Фото еды", "guide:add_food_photo")],
     [Markup.button.callback("Текстом", "menu:meal_text")],
-    [Markup.button.callback("Назад", "menu:home")]
+    [Markup.button.callback("В меню", "menu:home")]
   ]);
 }
 
@@ -68,7 +68,7 @@ function createDayMenu() {
     [Markup.button.callback("Разбор питания", "menu:quality")],
     [Markup.button.callback("Вес", "menu:weight"), Markup.button.callback("Замеры", "menu:measure")],
     [Markup.button.callback("Прогресс", "menu:progress")],
-    [Markup.button.callback("Назад", "menu:home")]
+    [Markup.button.callback("В меню", "menu:home")]
   ]);
 }
 
@@ -78,7 +78,7 @@ function createMoreMenu() {
     [Markup.button.callback("История записей", "menu:history")],
     [Markup.button.callback("Подписка", "menu:subscription")],
     [Markup.button.callback("Задать вопрос", "menu:ask")],
-    [Markup.button.callback("Назад", "menu:home")]
+    [Markup.button.callback("В меню", "menu:home")]
   ]);
 }
 
@@ -86,7 +86,7 @@ function createSubscriptionMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("Оформить подписку", "menu:buy_subscription")],
     [Markup.button.callback("Что умеет бот", "menu:home")],
-    [Markup.button.callback("Назад", "guide:more")]
+    [Markup.button.callback("В меню", "guide:more")]
   ]);
 }
 
