@@ -38,7 +38,7 @@ function createHomeMenu(profile) {
   }
 
   rows.push([Markup.button.callback("Добавить еду", "guide:add_food"), Markup.button.callback("Мой день", "guide:day")]);
-  rows.push([Markup.button.callback("Еще", "guide:more")]);
+  rows.push([Markup.button.callback("Анализ этикетки", "guide:label_photo"), Markup.button.callback("Еще", "guide:more")]);
 
   return Markup.inlineKeyboard(rows);
 }
@@ -78,7 +78,6 @@ function createMoreMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("Меню на день", "menu:mealplan")],
     [Markup.button.callback("История записей", "menu:history")],
-    [Markup.button.callback("Подписка", "menu:subscription")],
     [Markup.button.callback("Задать вопрос", "menu:ask")],
     [Markup.button.callback("В меню", "menu:home")]
   ]);
