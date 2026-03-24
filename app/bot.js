@@ -66,7 +66,8 @@ function createDayMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("Сводка за сегодня", "menu:today")],
     [Markup.button.callback("Разбор питания", "menu:quality")],
-    [Markup.button.callback("Вес", "menu:weight"), Markup.button.callback("Замеры", "menu:measure")],
+    [Markup.button.callback("Вес", "menu:weight"), Markup.button.callback("Журнал веса", "menu:weight_history")],
+    [Markup.button.callback("Замеры", "menu:measure")],
     [Markup.button.callback("Прогресс", "menu:progress")],
     [Markup.button.callback("В меню", "menu:home")]
   ]);
@@ -549,7 +550,9 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
         "",
         "Сводка за сегодня: сколько уже съедено калорий и БЖУ.",
         "Разбор питания: короткая оценка качества дневника.",
-        "Вес и Замеры: чтобы регулярно вести журнал.",
+        "Вес: чтобы добавить новое значение.",
+        "Журнал веса: чтобы посмотреть все последние записи.",
+        "Замеры: чтобы регулярно вести журнал объемов.",
         "Прогресс: чтобы видеть изменения по весу и объемам."
       ].join("\n"),
       createDayMenu()
@@ -961,6 +964,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
   bot.action("menu:meal_text", async (ctx) => { await ctx.answerCbQuery(); await promptMealTextMode(ctx); });
   bot.action("menu:ask", async (ctx) => { await ctx.answerCbQuery(); await promptQuestionMode(ctx); });
   bot.action("menu:weight", async (ctx) => { await ctx.answerCbQuery(); await promptWeightMode(ctx); });
+  bot.action("menu:weight_history", async (ctx) => { await ctx.answerCbQuery(); await showWeight(ctx); });
   bot.action("menu:measure", async (ctx) => { await ctx.answerCbQuery(); await promptMeasurementMode(ctx); });
   bot.action("menu:progress", async (ctx) => { await ctx.answerCbQuery(); await showProgress(ctx); });
   bot.action("menu:mealplan", async (ctx) => { await ctx.answerCbQuery(); await sendMealPlan(ctx, "день"); });
