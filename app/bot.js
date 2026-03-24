@@ -67,7 +67,7 @@ function createDayMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("Сводка за сегодня", "menu:today")],
     [Markup.button.callback("Разбор питания", "menu:quality")],
-    [Markup.button.callback("Вес", "menu:weight"), Markup.button.callback("Журнал веса", "menu:weight_history")],
+    [Markup.button.callback("Обновить вес", "menu:weight"), Markup.button.callback("Журнал веса", "menu:weight_history")],
     [Markup.button.callback("Замеры", "menu:measure")],
     [Markup.button.callback("Прогресс", "menu:progress")],
     [Markup.button.callback("В меню", "menu:home")]
