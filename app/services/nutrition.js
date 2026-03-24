@@ -114,18 +114,28 @@ export function createNutritionService({ apiKey, model }) {
   const client = new OpenAI({ apiKey });
 
   return {
-    async analyzeMealImage(imageUrl) {
+    async analyzeMealImage(imageUrl, clarification = "") {
       const result = await client.responses.parse({
         model,
         input: [
           {
             role: "system",
-            content: [{ type: "input_text", text: `${russianSystemPrompt} Проанализируй фото еды и оцени калории, белки, жиры и углеводы всей видимой порции. Если на фото несколько продуктов, оцени суммарно.` }]
+            content: [
+              {
+                type: "input_text",
+                text: `${russianSystemPrompt} Проанализируй фото еды и оцени калории, белки, жиры и углеводы всей видимой порции. Если на фото несколько продуктов, оцени суммарно. Если пользователь дал пояснение к фото, обязательно учитывай его как важную подсказку.`
+              }
+            ]
           },
           {
             role: "user",
             content: [
-              { type: "input_text", text: "Проанализируй фото еды и оцени КБЖУ всей порции. Если есть сомнения, прямо укажи это. Верни данные структурированно и только на русском языке." },
+              {
+                type: "input_text",
+                text: clarification
+                  ? `Проанализируй фото еды и оцени КБЖУ всей порции. Уточнение от пользователя: ${clarification}. Если есть сомнения, прямо укажи это. Верни данные структурированно и только на русском языке.`
+                  : "Проанализируй фото еды и оцени КБЖУ всей порции. Если есть сомнения, прямо укажи это. Верни данные структурированно и только на русском языке."
+              },
               { type: "input_image", image_url: imageUrl, detail: "high" }
             ]
           }

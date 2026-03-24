@@ -57,7 +57,6 @@ function createStartMenu(profile) {
 function createAddFoodMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("Фото еды", "guide:add_food_photo")],
-    [Markup.button.callback("Анализ этикетки", "guide:label_photo")],
     [Markup.button.callback("Текстом", "menu:meal_text")],
     [Markup.button.callback("В меню", "menu:home")]
   ]);
@@ -68,7 +67,7 @@ function createDayMenu() {
     [Markup.button.callback("Сводка за сегодня", "menu:today")],
     [Markup.button.callback("Разбор питания", "menu:quality")],
     [Markup.button.callback("Обновить вес", "menu:weight"), Markup.button.callback("Журнал веса", "menu:weight_history")],
-    [Markup.button.callback("Замеры", "menu:measure")],
+    [Markup.button.callback("Добавить замеры", "menu:measure")],
     [Markup.button.callback("Прогресс", "menu:progress")],
     [Markup.button.callback("В меню", "menu:home")]
   ]);
@@ -127,6 +126,7 @@ function createMealTypeMenu(entryId) {
       Markup.button.callback("Ужин", `mealtype:${entryId}:dinner`),
       Markup.button.callback("Перекус", `mealtype:${entryId}:snack`)
     ],
+    [Markup.button.callback("Ошибка? Уточнить, что на тарелке", `mealfix:${entryId}`)],
     [Markup.button.callback("В меню", "menu:home")]
   ]);
 }
@@ -151,7 +151,6 @@ function formatNutritionReport(report, mealType = "не указано") {
     `Белки: ~${round(report.protein)} г`,
     `Жиры: ~${round(report.fat)} г`,
     `Углеводы: ~${round(report.carbs)} г`,
-    `Уверенность: ${report.confidence}`,
     "",
     `Состав: ${ingredients}`,
     `Предположения: ${assumptions}`,
@@ -183,8 +182,7 @@ function formatLabelReport(report) {
     "Минусы:",
     cons,
     "",
-    `Вердикт: ${report.verdict}`,
-    `Уверенность: ${report.confidence}`
+    `Вердикт: ${report.verdict}`
   ].join("\n");
 }
 
@@ -471,6 +469,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
   const bot = new Telegraf(telegramBotToken);
   const profileWizard = new Map();
   const pendingMode = new Map();
+  const pendingContext = new Map();
 
   function getProfileAndAccess(ctx) {
     const profile = databaseService.ensureUser(ctx.from);
@@ -570,7 +569,6 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
         "Как добавить еду:",
         "",
         "Фото еды: если хочешь, чтобы бот сам распознал блюдо по изображению.",
-        "Анализ этикетки: если хочешь проверить состав продукта в магазине.",
         "Текстом: если проще написать, что ты съел, например «курица, рис и салат»."
       ].join("\n"),
       createAddFoodMenu()
@@ -692,6 +690,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     if (!(await requireActiveAccess(ctx))) return;
     profileWizard.delete(String(ctx.from.id));
     pendingMode.set(String(ctx.from.id), "ask");
+    pendingContext.delete(String(ctx.from.id));
     return ctx.reply("Напиши свой вопрос по питанию. Например: «как добрать белок без протеина?»", createMoreMenu());
   }
 
@@ -699,6 +698,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     if (!(await requireActiveAccess(ctx))) return;
     profileWizard.delete(String(ctx.from.id));
     pendingMode.set(String(ctx.from.id), "meal_text");
+    pendingContext.delete(String(ctx.from.id));
     return ctx.reply("Опиши, что ты съел. Например: «съел курицу, рис и салат».", createAddFoodMenu());
   }
 
@@ -706,6 +706,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     if (!(await requireActiveAccess(ctx))) return;
     profileWizard.delete(String(ctx.from.id));
     pendingMode.set(String(ctx.from.id), "label_photo");
+    pendingContext.delete(String(ctx.from.id));
     return ctx.reply(
       "Пришли фото этикетки или состава продукта, и я коротко разберу КБЖУ, состав и скажу, стоит ли покупать.",
       createAddFoodMenu()
@@ -716,6 +717,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     if (!(await requireActiveAccess(ctx))) return;
     profileWizard.delete(String(ctx.from.id));
     pendingMode.set(String(ctx.from.id), "weight");
+    pendingContext.delete(String(ctx.from.id));
     return ctx.reply("Отправь текущий вес числом в килограммах. Например: 76.4", createDayMenu());
   }
 
@@ -723,6 +725,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     if (!(await requireActiveAccess(ctx))) return;
     profileWizard.delete(String(ctx.from.id));
     pendingMode.set(String(ctx.from.id), "measurement");
+    pendingContext.delete(String(ctx.from.id));
     const history = databaseService.getMeasurementLogs(ctx.from.id, 5);
     return ctx.reply(
       [
@@ -1031,7 +1034,10 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
   bot.action("guide:more", async (ctx) => { await ctx.answerCbQuery(); await showMoreGuide(ctx); });
   bot.action("guide:add_food_photo", async (ctx) => {
     await ctx.answerCbQuery();
-    await ctx.reply("Теперь просто пришли фото еды следующим сообщением, и я его разберу.", createAddFoodMenu());
+    await ctx.reply(
+      "Теперь пришли фото еды следующим сообщением. Перед отправкой фото рекомендуем добавить комментарий-уточнение, что именно на тарелке, если продукт неочевиден — так результат будет точнее.",
+      createAddFoodMenu()
+    );
   });
   bot.action("guide:label_photo", async (ctx) => {
     await ctx.answerCbQuery();
@@ -1149,6 +1155,29 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     await ctx.reply(`Запись #${updatedEntry.id} обновлена. Тип приема пищи: ${mealType}.`, createAddFoodMenu());
   });
 
+  bot.action(/mealfix:(\d+)/, async (ctx) => {
+    const entryId = Number(ctx.match[1]);
+    const entry = databaseService.getMealEntryForUser(ctx.from.id, entryId);
+    if (!entry) {
+      await ctx.answerCbQuery("Запись не найдена");
+      return;
+    }
+
+    const deleted = databaseService.deleteMealEntry(ctx.from.id, entryId);
+    if (!deleted) {
+      await ctx.answerCbQuery("Не удалось удалить запись");
+      return;
+    }
+
+    pendingMode.set(String(ctx.from.id), "meal_correction");
+    pendingContext.set(String(ctx.from.id), { imageFileId: entry.image_file_id });
+    await ctx.answerCbQuery("Запись удалена");
+    await ctx.reply(
+      "Ошибочную запись убрал из журнала. Теперь напиши уточнение, что именно было на тарелке, и я пересчитаю по тому же фото.",
+      createAddFoodMenu()
+    );
+  });
+
   bot.action(/delete:(\d+)/, async (ctx) => {
     const entryId = Number(ctx.match[1]);
     const deleted = databaseService.deleteMealEntry(ctx.from.id, entryId);
@@ -1173,6 +1202,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     if (!(await requireActiveAccess(ctx))) return;
     const currentMode = pendingMode.get(String(ctx.from.id));
     pendingMode.delete(String(ctx.from.id));
+    pendingContext.delete(String(ctx.from.id));
     const profile = databaseService.ensureUser(ctx.from);
 
     try {
@@ -1190,8 +1220,9 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
         return;
       }
 
+      const clarification = ctx.message.caption?.trim() || "";
       await ctx.reply("Смотрю на фото, считаю КБЖУ и записываю прием пищи...");
-      const report = await nutritionService.analyzeMealImage(imageUrl);
+      const report = await nutritionService.analyzeMealImage(imageUrl, clarification);
       const savedEntry = databaseService.saveMealEntry({
         user_id: profile.id,
         telegram_message_id: ctx.message.message_id,
@@ -1235,6 +1266,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     if (currentMode === "meal_text") {
       if (!(await requireActiveAccess(ctx))) return;
       pendingMode.delete(String(ctx.from.id));
+      pendingContext.delete(String(ctx.from.id));
       await ctx.reply("Разбираю текстовое описание еды и считаю КБЖУ...");
       return saveTextMeal(ctx, ctx.message.text.trim());
     }
@@ -1242,6 +1274,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     if (currentMode === "ask") {
       if (!(await requireActiveAccess(ctx))) return;
       pendingMode.delete(String(ctx.from.id));
+      pendingContext.delete(String(ctx.from.id));
       await ctx.reply("Думаю над ответом...");
       return answerQuestion(ctx, ctx.message.text.trim());
     }
@@ -1249,6 +1282,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     if (currentMode === "weight") {
       if (!(await requireActiveAccess(ctx))) return;
       pendingMode.delete(String(ctx.from.id));
+      pendingContext.delete(String(ctx.from.id));
       const weightValue = numericFromText(ctx.message.text.trim());
       if (Number.isNaN(weightValue) || weightValue < 30 || weightValue > 300) {
         return ctx.reply("Вес нужно отправить числом в килограммах. Например: 76.4", createDayMenu());
@@ -1261,6 +1295,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     if (currentMode === "measurement") {
       if (!(await requireActiveAccess(ctx))) return;
       pendingMode.delete(String(ctx.from.id));
+      pendingContext.delete(String(ctx.from.id));
       const measurement = parseMeasurementText(ctx.message.text.trim());
       if (!measurement.waist && !measurement.thigh && !measurement.arm) {
         return ctx.reply(
@@ -1271,6 +1306,53 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
 
       databaseService.saveMeasurementLog(ctx.from.id, measurement);
       return ctx.reply("Замеры сохранены в журнал.", createDayMenu());
+    }
+
+    if (currentMode === "meal_correction") {
+      if (!(await requireActiveAccess(ctx))) return;
+      const context = pendingContext.get(String(ctx.from.id));
+      pendingMode.delete(String(ctx.from.id));
+      pendingContext.delete(String(ctx.from.id));
+
+      if (!context?.imageFileId) {
+        return ctx.reply("Не нашел фото для повторного разбора. Пришли фото еды заново.", createAddFoodMenu());
+      }
+
+      await ctx.reply("Уточнение получил, пересчитываю блюдо...");
+      try {
+        const profile = databaseService.ensureUser(ctx.from);
+        const imageUrl = await getTelegramFileUrl(telegramBotToken, context.imageFileId);
+        const report = await nutritionService.analyzeMealImage(imageUrl, ctx.message.text.trim());
+        const savedEntry = databaseService.saveMealEntry({
+          user_id: profile.id,
+          telegram_message_id: ctx.message.message_id,
+          image_file_id: context.imageFileId,
+          dish_name: report.dishName,
+          meal_type: "не указано",
+          estimated_weight_grams: report.estimatedWeightGrams,
+          calories: report.calories,
+          protein: report.protein,
+          fat: report.fat,
+          carbs: report.carbs,
+          confidence: report.confidence,
+          ingredients: report.ingredients,
+          assumptions: report.assumptions,
+          advice: report.advice
+        });
+
+        return ctx.reply(
+          [
+            formatNutritionReport(report, savedEntry.meal_type || "не указано"),
+            "",
+            `Запись #${savedEntry.id} добавлена в дневник.`,
+            "Теперь выбери тип приема пищи."
+          ].join("\n"),
+          createMealTypeMenu(savedEntry.id)
+        );
+      } catch (error) {
+        console.error("Failed to re-analyze corrected meal photo:", error);
+        return ctx.reply("Не получилось пересчитать блюдо. Попробуй прислать фото еще раз с уточнением в подписи.", createAddFoodMenu());
+      }
     }
 
     const profile = databaseService.ensureUser(ctx.from);
