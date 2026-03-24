@@ -28,6 +28,7 @@ export async function createDatabaseService({ databasePath }) {
   });
 
   const resolvedPath = path.resolve(process.cwd(), databasePath);
+  fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
   const fileBuffer = fs.existsSync(resolvedPath) ? fs.readFileSync(resolvedPath) : null;
   const db = fileBuffer ? new SQL.Database(fileBuffer) : new SQL.Database();
 

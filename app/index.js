@@ -4,6 +4,7 @@ import { createDatabaseService } from "./database.js";
 import { createNutritionService } from "./services/nutrition.js";
 
 async function main() {
+  console.log(`Using database path: ${config.databasePath}`);
   const databaseService = await createDatabaseService({
     databasePath: config.databasePath
   });
