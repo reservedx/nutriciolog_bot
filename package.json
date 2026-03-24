@@ -1,0 +1,27 @@
+﻿{
+  "name": "telegram-nutrition-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot nutrition assistant with OpenAI vision-based meal analysis and KBJU estimates.",
+  "type": "module",
+  "main": "app/index.js",
+  "scripts": {
+    "start": "node app/index.js",
+    "dev": "node --watch app/index.js",
+    "check": "node --check app/index.js"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "nutrition",
+    "openai",
+    "vision"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "node-fetch": "^3.3.2",
+    "openai": "^4.104.0",
+    "sql.js": "^1.13.0",
+    "telegraf": "^4.16.3"
+  }
+}
