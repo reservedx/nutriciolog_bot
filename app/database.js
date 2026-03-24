@@ -51,12 +51,17 @@ export async function createDatabaseService({ databasePath }) {
   }
 
   function getMany(sql, params = []) {
-    const result = db.exec(sql, params);
-    if (result.length === 0) {
-      return [];
+    const statement = db.prepare(sql);
+    try {
+      statement.bind(params);
+      const rows = [];
+      while (statement.step()) {
+        rows.push(statement.getAsObject());
+      }
+      return rows;
+    } finally {
+      statement.free();
     }
-    const [{ columns, values }] = result;
-    return values.map((row) => mapRow(columns, row));
   }
 
   db.exec(`
@@ -429,6 +434,7 @@ export async function createDatabaseService({ databasePath }) {
       if (!user) return null;
 
       const logs = getMany(`SELECT * FROM weight_logs WHERE user_id = ? ORDER BY datetime(created_at) DESC LIMIT ?`, [user.id, limit]);
+      console.log(`Weight logs for user ${telegramUserId}: ${logs.length}`);
       return { user, logs };
     },
 
@@ -437,6 +443,7 @@ export async function createDatabaseService({ databasePath }) {
       if (!user) return null;
 
       const logs = getMany(`SELECT * FROM measurement_logs WHERE user_id = ? ORDER BY datetime(created_at) DESC LIMIT ?`, [user.id, limit]);
+      console.log(`Measurement logs for user ${telegramUserId}: ${logs.length}`);
       return { user, logs };
     },
 
@@ -516,6 +523,7 @@ export async function createDatabaseService({ databasePath }) {
         `,
         [user.id, startOfDayIso()]
       );
+      console.log(`Today meals for user ${telegramUserId}: ${meals.length}`);
 
       const totals = meals.reduce(
         (acc, meal) => ({
@@ -544,6 +552,7 @@ export async function createDatabaseService({ databasePath }) {
         `,
         [user.id, limit]
       );
+      console.log(`Recent meals for user ${telegramUserId}: ${meals.length}`);
 
       return { user, meals };
     },
