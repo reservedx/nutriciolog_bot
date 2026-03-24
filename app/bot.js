@@ -925,6 +925,41 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     return answerQuestion(ctx, question);
   });
 
+  bot.command("clearme", (ctx) => {
+    const payload = ctx.message.text.replace("/clearme", "").trim();
+
+    if (payload !== "CONFIRM") {
+      return ctx.reply(
+        [
+          "Эта команда очистит только твои тестовые данные:",
+          "- приемы пищи",
+          "- вес",
+          "- замеры",
+          "",
+          "Профиль останется на месте.",
+          "Если точно хочешь очистить журнал, отправь:",
+          "/clearme CONFIRM"
+        ].join("\n"),
+        createDayMenu()
+      );
+    }
+
+    const result = databaseService.clearUserJournal(ctx.from.id);
+    if (!result) {
+      return ctx.reply("Не удалось найти профиль для очистки.", createDayMenu());
+    }
+
+    return ctx.reply(
+      [
+        "Твои тестовые данные очищены.",
+        `Приемы пищи: ${result.mealsDeleted}`,
+        `Вес: ${result.weightsDeleted}`,
+        `Замеры: ${result.measurementsDeleted}`
+      ].join("\n"),
+      createDayMenu()
+    );
+  });
+
   bot.command("setprofile", (ctx) => {
     databaseService.ensureUser(ctx.from);
     const parsed = parseProfileCommand(ctx.message.text);

@@ -516,6 +516,26 @@ export async function createDatabaseService({ databasePath }) {
       return true;
     },
 
+    clearUserJournal(telegramUserId) {
+      const user = getUserByTelegramId(telegramUserId);
+      if (!user) return null;
+
+      const mealCount = getOne("SELECT COUNT(*) AS count FROM meal_entries WHERE user_id = ?", [user.id])?.count || 0;
+      const weightCount = getOne("SELECT COUNT(*) AS count FROM weight_logs WHERE user_id = ?", [user.id])?.count || 0;
+      const measurementCount = getOne("SELECT COUNT(*) AS count FROM measurement_logs WHERE user_id = ?", [user.id])?.count || 0;
+
+      db.run("DELETE FROM meal_entries WHERE user_id = ?", [user.id]);
+      db.run("DELETE FROM weight_logs WHERE user_id = ?", [user.id]);
+      db.run("DELETE FROM measurement_logs WHERE user_id = ?", [user.id]);
+      persist();
+
+      return {
+        mealsDeleted: Number(mealCount),
+        weightsDeleted: Number(weightCount),
+        measurementsDeleted: Number(measurementCount)
+      };
+    },
+
     getTodaySummary(telegramUserId) {
       const user = getUserByTelegramId(telegramUserId);
       if (!user) return null;
