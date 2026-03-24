@@ -181,6 +181,10 @@ function formatDate(iso) {
   }).format(new Date(iso));
 }
 
+function formatJournalDate(iso) {
+  return formatDate(iso);
+}
+
 function formatAccessStatus(access) {
   if (!access) {
     return "Статус доступа пока не определен.";
@@ -246,7 +250,9 @@ function formatRecentMeals(history) {
 
   return [
     "Последние записи:",
-    ...history.meals.map((meal) => `#${meal.id} ${meal.created_at}: ${meal.meal_type || "не указано"}, ${meal.dish_name}, ${round(meal.calories)} ккал`),
+    ...history.meals.map(
+      (meal) => `${formatJournalDate(meal.created_at)} — ${meal.meal_type || "не указано"}, ${meal.dish_name}, ${round(meal.calories)} ккал`
+    ),
     "",
     "Ниже можно удалить ненужные записи."
   ].join("\n");
@@ -259,7 +265,7 @@ function formatWeightHistory(history) {
 
   return [
     "Последние записи веса:",
-    ...history.logs.map((log) => `- ${log.created_at}: ${Number(log.weight).toFixed(1)} кг${log.note ? ` (${log.note})` : ""}`)
+    ...history.logs.map((log) => `${formatJournalDate(log.created_at)} — ${Number(log.weight).toFixed(1)} кг${log.note ? ` (${log.note})` : ""}`)
   ].join("\n");
 }
 
@@ -291,7 +297,7 @@ function formatMeasurementHistory(history) {
       if (log.waist != null) parts.push(`талия ${Number(log.waist).toFixed(1)} см`);
       if (log.thigh != null) parts.push(`нога ${Number(log.thigh).toFixed(1)} см`);
       if (log.arm != null) parts.push(`рука ${Number(log.arm).toFixed(1)} см`);
-      return `- ${log.created_at}: ${parts.join(", ")}${log.note ? ` (${log.note})` : ""}`;
+      return `${formatJournalDate(log.created_at)} — ${parts.join(", ")}${log.note ? ` (${log.note})` : ""}`;
     })
   ].join("\n");
 }
