@@ -37,7 +37,7 @@ function createHomeMenu(profile) {
     rows.push([Markup.button.callback("Начать", "guide:start")]);
   }
 
-  rows.push([Markup.button.callback("Добавить еду", "guide:add_food"), Markup.button.callback("Мой день", "guide:day")]);
+  rows.push([Markup.button.callback("Добавить еду", "guide:add_food"), Markup.button.callback("Мой кабинет", "guide:day")]);
   rows.push([Markup.button.callback("Анализ этикетки", "guide:label_photo"), Markup.button.callback("Еще", "guide:more")]);
 
   return Markup.inlineKeyboard(rows);
@@ -536,7 +536,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
         "",
         "Нажми «Настроить профиль» — я рассчитаю твою норму",
         "Добавь первый прием пищи",
-        "Загляни в «Мой день», чтобы увидеть результат",
+        "Загляни в «Мой кабинет», чтобы увидеть результат",
         "",
         "👇 Начни прямо сейчас — добавь свою первую еду",
         "",
@@ -578,7 +578,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
   async function showDayGuide(ctx) {
     return ctx.reply(
       [
-        "Раздел «Мой день» поможет быстро понять, что происходит сегодня.",
+        "Раздел «Мой кабинет» поможет быстро понять, что происходит сегодня.",
         "",
         "Сводка за сегодня: сколько уже съедено калорий и БЖУ.",
         "Разбор питания: короткая оценка качества дневника.",
@@ -883,7 +883,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
         "",
         "Начать: настройка профиля и нормы, если профиль еще не заполнен.",
         "Добавить еду: фото, этикетка или текст.",
-        "Мой день: сводка, вес, замеры и прогресс.",
+        "Мой кабинет: сводка, вес, замеры и прогресс.",
         "Еще: меню на день, история, подписка и вопросы.",
         "",
         "Команды по оплате: /subscription, /buy, /support, /terms"
@@ -1362,7 +1362,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
         "",
         profile.daily_calories ? "Профиль уже настроен, так что можно сразу добавлять еду или смотреть свой день." : "Начать: настройка профиля.",
         "Добавить еду: фото или текст.",
-        "Мой день: сводка, вес, замеры и прогресс.",
+        "Мой кабинет: сводка, вес, замеры и прогресс.",
         "Еще: меню, история, подписка и вопросы."
       ].join("\n"),
       createHomeMenu(profile)
