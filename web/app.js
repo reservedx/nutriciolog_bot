@@ -351,19 +351,6 @@ async function bootstrapTelegramLogin() {
       throw new Error("Не удалось определить username бота для Telegram Login.");
     }
 
-    window.handleTelegramAuth = async (user) => {
-      try {
-        setStatus("Подтверждаю вход через Telegram...", "muted");
-        await request("/api/auth/telegram", {
-          method: "POST",
-          body: JSON.stringify(user)
-        });
-        await loadDashboardBySession();
-      } catch (error) {
-        setStatus(error.message, "error");
-      }
-    };
-
     const script = document.createElement("script");
     script.async = true;
     script.src = "https://telegram.org/js/telegram-widget.js?22";
@@ -371,7 +358,7 @@ async function bootstrapTelegramLogin() {
     script.setAttribute("data-size", "large");
     script.setAttribute("data-userpic", "false");
     script.setAttribute("data-request-access", "write");
-    script.setAttribute("data-onauth", "handleTelegramAuth(user)");
+    script.setAttribute("data-auth-url", config.authUrl || "/auth/telegram/callback");
 
     elements.telegramLoginWidget.innerHTML = "";
     elements.telegramLoginWidget.append(script);
@@ -402,6 +389,23 @@ function clearTelegramAuthFromUrl() {
     url.searchParams.delete(key);
   });
   window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+}
+
+function consumeAuthResultFlags() {
+  const url = new URL(window.location.href);
+  const authSuccess = url.searchParams.get("auth_success");
+  const authError = url.searchParams.get("auth_error");
+  if (!authSuccess && !authError) {
+    return { authSuccess: false, authError: null };
+  }
+
+  url.searchParams.delete("auth_success");
+  url.searchParams.delete("auth_error");
+  window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+  return {
+    authSuccess: authSuccess === "1",
+    authError
+  };
 }
 
 async function restoreTelegramAuthFromUrl() {
@@ -455,6 +459,15 @@ elements.telegramUserId.addEventListener("keydown", (event) => {
 bootstrapTelegramLogin();
 restoreTelegramAuthFromUrl().then((handled) => {
   if (!handled) {
-    restoreSession();
+    const authFlags = consumeAuthResultFlags();
+    if (authFlags.authError) {
+      setStatus("Не удалось подтвердить вход через Telegram.", "error");
+    }
+
+    restoreSession().then(() => {
+      if (authFlags.authSuccess) {
+        setStatus("Вход через Telegram выполнен.", "success");
+      }
+    });
   }
 });

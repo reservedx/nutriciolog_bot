@@ -217,8 +217,41 @@ export function createWebServer({ port, databaseService, nutritionService, teleg
 
       if (req.method === "GET" && pathname === "/api/web-config") {
         return sendJson(res, 200, {
-          botUsername: resolvedBotUsername
+          botUsername: resolvedBotUsername,
+          authUrl: "/auth/telegram/callback"
         });
+      }
+
+      if (req.method === "GET" && pathname === "/auth/telegram/callback") {
+        const payload = Object.fromEntries(url.searchParams.entries());
+        if (!verifyTelegramLogin(payload, telegramBotToken)) {
+          res.writeHead(302, { Location: "/?auth_error=telegram_verification_failed" });
+          res.end();
+          return;
+        }
+
+        databaseService.ensureUser({
+          id: payload.id,
+          username: payload.username || null,
+          first_name: payload.first_name || null,
+          last_name: payload.last_name || null
+        });
+
+        const token = createSessionToken(
+          {
+            telegram_user_id: String(payload.id),
+            telegram_username: payload.username || null,
+            authenticated_at: new Date().toISOString()
+          },
+          sessionSecret
+        );
+
+        res.writeHead(302, {
+          Location: "/?auth_success=1",
+          "Set-Cookie": buildSessionCookie(token)
+        });
+        res.end();
+        return;
       }
 
       if (req.method === "GET" && pathname === "/api/me") {
