@@ -1,5 +1,6 @@
 const state = {
-  profile: null
+  profile: null,
+  activeTab: "overview"
 };
 
 const elements = {
@@ -13,7 +14,9 @@ const elements = {
   profileSubline: document.querySelector("#profileSubline"),
   profileBlock: document.querySelector("#profileBlock"),
   todayBlock: document.querySelector("#todayBlock"),
+  macroBars: document.querySelector("#macroBars"),
   progressBlock: document.querySelector("#progressBlock"),
+  progressTimeline: document.querySelector("#progressTimeline"),
   historyBlock: document.querySelector("#historyBlock"),
   weightBlock: document.querySelector("#weightBlock"),
   measurementBlock: document.querySelector("#measurementBlock"),
@@ -21,6 +24,15 @@ const elements = {
   mealPlanBlock: document.querySelector("#mealPlanBlock"),
   weightChart: document.querySelector("#weightChart"),
   measurementChart: document.querySelector("#measurementChart"),
+  miniWeightValue: document.querySelector("#miniWeightValue"),
+  miniWeightDelta: document.querySelector("#miniWeightDelta"),
+  miniWeightChart: document.querySelector("#miniWeightChart"),
+  miniCaloriesValue: document.querySelector("#miniCaloriesValue"),
+  miniCaloriesCaption: document.querySelector("#miniCaloriesCaption"),
+  miniCaloriesChart: document.querySelector("#miniCaloriesChart"),
+  miniWaistValue: document.querySelector("#miniWaistValue"),
+  miniWaistDelta: document.querySelector("#miniWaistDelta"),
+  miniMeasurementChart: document.querySelector("#miniMeasurementChart"),
   weightForm: document.querySelector("#weightForm"),
   measurementForm: document.querySelector("#measurementForm"),
   askForm: document.querySelector("#askForm"),
@@ -31,7 +43,9 @@ const elements = {
   armValue: document.querySelector("#armValue"),
   questionValue: document.querySelector("#questionValue"),
   statusLine: document.querySelector("#statusLine"),
-  telegramLoginWidget: document.querySelector("#telegramLoginWidget")
+  telegramLoginWidget: document.querySelector("#telegramLoginWidget"),
+  tabButtons: [...document.querySelectorAll(".tab-button")],
+  tabPanels: [...document.querySelectorAll(".tab-panel")]
 };
 
 function formatDate(dateString) {
@@ -66,6 +80,13 @@ function formatNumber(value, digits = 1) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return "0";
   return numeric.toFixed(digits);
+}
+
+function formatSigned(value, suffix = "") {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "—";
+  const prefix = numeric > 0 ? "+" : "";
+  return `${prefix}${numeric.toFixed(1)}${suffix}`;
 }
 
 function createMetric(label, value) {
@@ -129,6 +150,16 @@ function setAuthenticatedUI(isAuthenticated) {
   elements.seedDemoButton.classList.toggle("hidden", !isAuthenticated);
 }
 
+function setActiveTab(tabName) {
+  state.activeTab = tabName;
+  elements.tabButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.tab === tabName);
+  });
+  elements.tabPanels.forEach((panel) => {
+    panel.classList.toggle("active", panel.dataset.panel === tabName);
+  });
+}
+
 function buildPath(points, width, height, min, max, accessor) {
   if (points.length === 0) return "";
   if (points.length === 1) {
@@ -149,6 +180,25 @@ function buildPath(points, width, height, min, max, accessor) {
 
 function renderEmptyChart(container, message) {
   container.innerHTML = `<div class="chart-empty">${message}</div>`;
+}
+
+function renderSparkline(container, values, color) {
+  const points = values.filter((value) => Number.isFinite(value));
+  if (!points.length) {
+    container.innerHTML = `<div class="sparkline-empty"></div>`;
+    return;
+  }
+
+  const width = 220;
+  const height = 64;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const path = buildPath(points, width, height, min, max, (point) => point);
+  container.innerHTML = `
+    <svg class="sparkline-svg" viewBox="0 0 ${width} ${height}" role="img" aria-hidden="true">
+      <path d="${path}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+  `;
 }
 
 function renderLineChart(container, logs, options) {
@@ -274,6 +324,33 @@ function renderMultiLineChart(container, logs) {
   `;
 }
 
+function renderMacroBars(profile, today) {
+  const totals = today?.totals || {};
+  const items = [
+    { label: "Калории", value: Number(totals.calories || 0), goal: Number(profile.daily_calories || 0), unit: "ккал", className: "calories" },
+    { label: "Белки", value: Number(totals.protein || 0), goal: Number(profile.daily_protein || 0), unit: "г", className: "protein" },
+    { label: "Жиры", value: Number(totals.fat || 0), goal: Number(profile.daily_fat || 0), unit: "г", className: "fat" },
+    { label: "Углеводы", value: Number(totals.carbs || 0), goal: Number(profile.daily_carbs || 0), unit: "г", className: "carbs" }
+  ];
+
+  elements.macroBars.innerHTML = items
+    .map((item) => {
+      const ratio = item.goal > 0 ? Math.min(100, (item.value / item.goal) * 100) : 0;
+      return `
+        <div class="macro-row">
+          <div class="macro-top">
+            <span>${item.label}</span>
+            <strong>${formatNumber(item.value)} / ${item.goal || 0} ${item.unit}</strong>
+          </div>
+          <div class="macro-track">
+            <div class="macro-fill ${item.className}" style="width:${ratio}%"></div>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
 function renderSummary(dashboard) {
   const profile = dashboard.profile;
   const todayMeals = dashboard.today?.meals || [];
@@ -291,8 +368,8 @@ function renderSummary(dashboard) {
     createSummaryCard("Сегодня", `${Math.round(Number(todayTotals.calories || 0))} ккал`, `${todayMeals.length} приемов пищи`),
     createSummaryCard("Текущий вес", latestWeight ? `${formatNumber(latestWeight.weight)} кг` : "—", latestWeight ? formatDateLong(latestWeight.created_at) : "нет записей"),
     createSummaryCard(
-      "Динамика",
-      dashboard.weightProgress?.change !== undefined ? `${formatNumber(dashboard.weightProgress.change)} кг` : "—",
+      "Динамика веса",
+      dashboard.weightProgress?.change !== undefined ? `${formatSigned(dashboard.weightProgress.change, " кг")}` : "—",
       dashboard.weightProgress?.change > 0 ? "рост" : dashboard.weightProgress?.change < 0 ? "снижение" : "без изменений"
     ),
     createSummaryCard(
@@ -301,6 +378,29 @@ function renderSummary(dashboard) {
       latestMeasurement ? "талия / нога / рука" : "нет записей"
     )
   ].forEach((card) => elements.summaryGrid.append(card));
+}
+
+function renderHeroCards(dashboard) {
+  const weightLogs = dashboard.weightLogs?.logs || [];
+  const measurementLogs = dashboard.measurementLogs?.logs || [];
+  const todayTotals = dashboard.today?.totals || {};
+  const recentMeals = dashboard.recentMeals?.meals || [];
+
+  const latestWeight = weightLogs[0];
+  const latestMeasurement = measurementLogs[0];
+  const weightChange = dashboard.weightProgress?.change;
+  const waistChange = dashboard.measurementProgress?.waistChange;
+
+  elements.miniWeightValue.textContent = latestWeight ? `${formatNumber(latestWeight.weight)} кг` : "—";
+  elements.miniWeightDelta.textContent = Number.isFinite(weightChange) ? formatSigned(weightChange, " кг") : "нет данных";
+  elements.miniCaloriesValue.textContent = `${Math.round(Number(todayTotals.calories || 0))} ккал`;
+  elements.miniCaloriesCaption.textContent = recentMeals.length ? `${recentMeals.length} приемов пищи` : "сегодня";
+  elements.miniWaistValue.textContent = latestMeasurement?.waist ? `${formatNumber(latestMeasurement.waist)} см` : "—";
+  elements.miniWaistDelta.textContent = Number.isFinite(waistChange) ? formatSigned(waistChange, " см") : "нет данных";
+
+  renderSparkline(elements.miniWeightChart, [...weightLogs].reverse().map((log) => Number(log.weight)), "#0f8a6b");
+  renderSparkline(elements.miniCaloriesChart, [...recentMeals].reverse().slice(-8).map((meal) => Number(meal.calories)), "#d8a44a");
+  renderSparkline(elements.miniMeasurementChart, [...measurementLogs].reverse().map((log) => Number(log.waist)), "#1d3244");
 }
 
 function renderProfile(profile) {
@@ -343,20 +443,58 @@ function renderProgress(weightProgress, measurementProgress) {
 
   if (weightProgress?.latest && weightProgress?.oldest) {
     items.push(createMetric("Вес", `${formatNumber(weightProgress.oldest.weight)} → ${formatNumber(weightProgress.latest.weight)} кг`));
-    items.push(createMetric("Изменение веса", `${formatNumber(weightProgress.change)} кг`));
+    items.push(createMetric("Изменение веса", `${formatSigned(weightProgress.change, " кг")}`));
   } else {
     items.push(createMetric("Вес", "Недостаточно данных"));
   }
 
   if (measurementProgress?.latest && measurementProgress?.oldest) {
-    items.push(createMetric("Талия", measurementProgress.waistChange === null ? "нет данных" : `${formatNumber(measurementProgress.waistChange)} см`));
-    items.push(createMetric("Нога", measurementProgress.thighChange === null ? "нет данных" : `${formatNumber(measurementProgress.thighChange)} см`));
-    items.push(createMetric("Рука", measurementProgress.armChange === null ? "нет данных" : `${formatNumber(measurementProgress.armChange)} см`));
+    items.push(createMetric("Талия", measurementProgress.waistChange === null ? "нет данных" : `${formatSigned(measurementProgress.waistChange, " см")}`));
+    items.push(createMetric("Нога", measurementProgress.thighChange === null ? "нет данных" : `${formatSigned(measurementProgress.thighChange, " см")}`));
+    items.push(createMetric("Рука", measurementProgress.armChange === null ? "нет данных" : `${formatSigned(measurementProgress.armChange, " см")}`));
   } else {
     items.push(createMetric("Замеры", "Пока нет динамики"));
   }
 
   fillBlock(elements.progressBlock, items);
+}
+
+function renderProgressTimeline(weightLogs, measurementLogs) {
+  const items = [];
+
+  [...weightLogs].slice(0, 8).forEach((log) => {
+    items.push({
+      date: log.created_at,
+      title: `Вес обновлен: ${formatNumber(log.weight)} кг`,
+      subtitle: formatDateLong(log.created_at)
+    });
+  });
+
+  [...measurementLogs].slice(0, 8).forEach((log) => {
+    items.push({
+      date: log.created_at,
+      title: `Замеры: талия ${log.waist ?? "-"} · нога ${log.thigh ?? "-"} · рука ${log.arm ?? "-"}`,
+      subtitle: formatDateLong(log.created_at)
+    });
+  });
+
+  items.sort((a, b) => new Date(b.date) - new Date(a.date));
+  elements.progressTimeline.innerHTML = items.length
+    ? items
+        .slice(0, 10)
+        .map(
+          (item) => `
+            <article class="timeline-item">
+              <div class="timeline-dot"></div>
+              <div class="timeline-body">
+                <strong>${item.title}</strong>
+                <div class="status">${item.subtitle}</div>
+              </div>
+            </article>
+          `
+        )
+        .join("")
+    : `<div class="chart-empty">История прогресса появится после первых записей.</div>`;
 }
 
 function renderHistory(meals) {
@@ -398,16 +536,23 @@ function renderMeasurementLogs(logs) {
 
 function renderDashboard(dashboard) {
   state.profile = dashboard.profile;
+  const weightLogs = dashboard.weightLogs?.logs || [];
+  const measurementLogs = dashboard.measurementLogs?.logs || [];
+  const recentMeals = dashboard.recentMeals?.meals || [];
+
   elements.dashboard.classList.remove("hidden");
   setAuthenticatedUI(true);
+  renderHeroCards(dashboard);
   renderSummary(dashboard);
   renderProfile(dashboard.profile);
   renderToday(dashboard.today);
+  renderMacroBars(dashboard.profile, dashboard.today);
   renderProgress(dashboard.weightProgress, dashboard.measurementProgress);
-  renderHistory(dashboard.recentMeals?.meals || []);
-  renderWeightLogs(dashboard.weightLogs?.logs || []);
-  renderMeasurementLogs(dashboard.measurementLogs?.logs || []);
-  renderLineChart(elements.weightChart, dashboard.weightLogs?.logs || [], {
+  renderProgressTimeline(weightLogs, measurementLogs);
+  renderHistory(recentMeals);
+  renderWeightLogs(weightLogs);
+  renderMeasurementLogs(measurementLogs);
+  renderLineChart(elements.weightChart, weightLogs, {
     title: "График веса",
     accessor: (point) => Number(point.weight),
     color: "#0f8a6b",
@@ -415,7 +560,7 @@ function renderDashboard(dashboard) {
     precision: 1,
     emptyMessage: "Добавь несколько записей веса или подгрузи демо-данные, чтобы увидеть график."
   });
-  renderMultiLineChart(elements.measurementChart, dashboard.measurementLogs?.logs || []);
+  renderMultiLineChart(elements.measurementChart, measurementLogs);
 }
 
 async function loadDashboardBySession() {
@@ -608,6 +753,9 @@ elements.telegramUserId.addEventListener("keydown", (event) => {
     event.preventDefault();
     loadDashboardByFallback().catch((error) => setStatus(error.message, "error"));
   }
+});
+elements.tabButtons.forEach((button) => {
+  button.addEventListener("click", () => setActiveTab(button.dataset.tab));
 });
 
 bootstrapTelegramLogin();

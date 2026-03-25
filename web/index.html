@@ -9,16 +9,45 @@
   <body>
     <main class="page">
       <section class="hero-shell">
-        <div class="hero-copy">
+        <div class="hero-copy glass">
           <p class="eyebrow">Nutriciolog Platform</p>
           <h1>Личный кабинет питания и прогресса</h1>
           <p class="lead">
-            Сайт и Telegram-бот работают на одной базе данных. Входи через Telegram и открывай тот же профиль,
-            дневник, прогресс, вес и замеры, которые уже есть в боте.
+            Премиальный кабинет на одной базе с Telegram-ботом: питание, КБЖУ, вес, замеры, графики и AI-помощник в
+            одном месте.
           </p>
+
+          <div class="hero-mini-grid">
+            <article class="mini-card">
+              <div class="mini-head">
+                <span class="mini-label">Вес</span>
+                <span id="miniWeightDelta" class="mini-chip">—</span>
+              </div>
+              <div id="miniWeightValue" class="mini-value">—</div>
+              <div id="miniWeightChart" class="mini-chart"></div>
+            </article>
+
+            <article class="mini-card">
+              <div class="mini-head">
+                <span class="mini-label">Калории</span>
+                <span id="miniCaloriesCaption" class="mini-chip">сегодня</span>
+              </div>
+              <div id="miniCaloriesValue" class="mini-value">—</div>
+              <div id="miniCaloriesChart" class="mini-chart"></div>
+            </article>
+
+            <article class="mini-card">
+              <div class="mini-head">
+                <span class="mini-label">Талия</span>
+                <span id="miniWaistDelta" class="mini-chip">—</span>
+              </div>
+              <div id="miniWaistValue" class="mini-value">—</div>
+              <div id="miniMeasurementChart" class="mini-chart"></div>
+            </article>
+          </div>
         </div>
 
-        <div class="hero-panel">
+        <div class="hero-panel glass">
           <div class="login-header">
             <div>
               <label>Вход через Telegram</label>
@@ -44,7 +73,7 @@
       </section>
 
       <section id="dashboard" class="dashboard hidden">
-        <section class="overview card surface">
+        <section class="overview card glass">
           <div class="overview-head">
             <div>
               <p class="eyebrow">Dashboard</p>
@@ -60,147 +89,181 @@
           <div id="summaryGrid" class="summary-grid"></div>
         </section>
 
-        <section class="charts-grid">
-          <article class="card chart-card surface">
-            <div class="section-head">
-              <div>
-                <p class="eyebrow">Weight</p>
-                <h2>График веса</h2>
-              </div>
-              <span class="chip">до 30 точек</span>
-            </div>
-            <div id="weightChart" class="chart-shell"></div>
-          </article>
+        <section class="tabs-shell glass">
+          <div class="tabs-nav" role="tablist" aria-label="Разделы кабинета">
+            <button class="tab-button active" data-tab="overview" type="button">Обзор</button>
+            <button class="tab-button" data-tab="progress" type="button">Прогресс</button>
+            <button class="tab-button" data-tab="nutrition" type="button">Питание</button>
+            <button class="tab-button" data-tab="assistant" type="button">AI-помощник</button>
+          </div>
 
-          <article class="card chart-card surface">
-            <div class="section-head">
-              <div>
-                <p class="eyebrow">Measurements</p>
-                <h2>График замеров</h2>
-              </div>
-              <div class="legend">
-                <span class="legend-item"><i class="dot dot-green"></i>Талия</span>
-                <span class="legend-item"><i class="dot dot-gold"></i>Нога</span>
-                <span class="legend-item"><i class="dot dot-ink"></i>Рука</span>
-              </div>
-            </div>
-            <div id="measurementChart" class="chart-shell"></div>
-          </article>
-        </section>
+          <div class="tabs-content">
+            <section class="tab-panel active" data-panel="overview">
+              <div class="content-grid">
+                <article class="card glass">
+                  <div class="section-head">
+                    <div>
+                      <p class="eyebrow">Profile</p>
+                      <h2>Профиль</h2>
+                    </div>
+                  </div>
+                  <div id="profileBlock" class="metric-grid"></div>
+                </article>
 
-        <section class="content-grid">
-          <article class="card surface">
-            <div class="section-head">
-              <div>
-                <p class="eyebrow">Profile</p>
-                <h2>Профиль</h2>
-              </div>
-            </div>
-            <div id="profileBlock" class="metric-grid"></div>
-          </article>
+                <article class="card glass">
+                  <div class="section-head">
+                    <div>
+                      <p class="eyebrow">Today</p>
+                      <h2>Сегодня</h2>
+                    </div>
+                  </div>
+                  <div id="todayBlock" class="stack spacious"></div>
+                </article>
 
-          <article class="card surface">
-            <div class="section-head">
-              <div>
-                <p class="eyebrow">Today</p>
-                <h2>Сегодня</h2>
+                <article class="card glass wide">
+                  <div class="section-head">
+                    <div>
+                      <p class="eyebrow">Macros</p>
+                      <h2>КБЖУ за сегодня</h2>
+                    </div>
+                  </div>
+                  <div id="macroBars" class="macro-bars"></div>
+                </article>
               </div>
-            </div>
-            <div id="todayBlock" class="stack spacious"></div>
-          </article>
+            </section>
 
-          <article class="card surface">
-            <div class="section-head">
-              <div>
-                <p class="eyebrow">Progress</p>
-                <h2>Прогресс</h2>
-              </div>
-            </div>
-            <div id="progressBlock" class="metric-grid"></div>
-          </article>
+            <section class="tab-panel" data-panel="progress">
+              <div class="content-grid">
+                <article class="card chart-card glass">
+                  <div class="section-head">
+                    <div>
+                      <p class="eyebrow">Weight</p>
+                      <h2>График веса</h2>
+                    </div>
+                    <span class="chip">до 30 точек</span>
+                  </div>
+                  <div id="weightChart" class="chart-shell"></div>
+                </article>
 
-          <article class="card surface">
-            <div class="section-head">
-              <div>
-                <p class="eyebrow">Update</p>
-                <h2>Обновить вес</h2>
-              </div>
-            </div>
-            <form id="weightForm" class="stack">
-              <input id="weightValue" type="number" step="0.1" min="0" placeholder="76.4" />
-              <button type="submit">Сохранить вес</button>
-            </form>
-          </article>
+                <article class="card chart-card glass">
+                  <div class="section-head">
+                    <div>
+                      <p class="eyebrow">Measurements</p>
+                      <h2>График замеров</h2>
+                    </div>
+                    <div class="legend">
+                      <span class="legend-item"><i class="dot dot-green"></i>Талия</span>
+                      <span class="legend-item"><i class="dot dot-gold"></i>Нога</span>
+                      <span class="legend-item"><i class="dot dot-ink"></i>Рука</span>
+                    </div>
+                  </div>
+                  <div id="measurementChart" class="chart-shell"></div>
+                </article>
 
-          <article class="card surface">
-            <div class="section-head">
-              <div>
-                <p class="eyebrow">Update</p>
-                <h2>Добавить замеры</h2>
-              </div>
-            </div>
-            <form id="measurementForm" class="stack">
-              <input id="waistValue" type="number" step="0.1" min="0" placeholder="Талия" />
-              <input id="thighValue" type="number" step="0.1" min="0" placeholder="Нога" />
-              <input id="armValue" type="number" step="0.1" min="0" placeholder="Рука" />
-              <button type="submit">Сохранить замеры</button>
-            </form>
-          </article>
+                <article class="card glass wide">
+                  <div class="section-head">
+                    <div>
+                      <p class="eyebrow">Progress</p>
+                      <h2>Динамика изменений</h2>
+                    </div>
+                  </div>
+                  <div id="progressBlock" class="metric-grid"></div>
+                  <div id="progressTimeline" class="timeline"></div>
+                </article>
 
-          <article class="card surface wide">
-            <div class="section-head">
-              <div>
-                <p class="eyebrow">Nutrition</p>
-                <h2>История питания</h2>
-              </div>
-            </div>
-            <div id="historyBlock" class="stack spacious"></div>
-          </article>
+                <article class="card glass">
+                  <div class="section-head">
+                    <div>
+                      <p class="eyebrow">Update</p>
+                      <h2>Обновить вес</h2>
+                    </div>
+                  </div>
+                  <form id="weightForm" class="stack">
+                    <input id="weightValue" type="number" step="0.1" min="0" placeholder="76.4" />
+                    <button type="submit">Сохранить вес</button>
+                  </form>
+                </article>
 
-          <article class="card surface">
-            <div class="section-head">
-              <div>
-                <p class="eyebrow">Journal</p>
-                <h2>Журнал веса</h2>
+                <article class="card glass">
+                  <div class="section-head">
+                    <div>
+                      <p class="eyebrow">Update</p>
+                      <h2>Добавить замеры</h2>
+                    </div>
+                  </div>
+                  <form id="measurementForm" class="stack">
+                    <input id="waistValue" type="number" step="0.1" min="0" placeholder="Талия" />
+                    <input id="thighValue" type="number" step="0.1" min="0" placeholder="Нога" />
+                    <input id="armValue" type="number" step="0.1" min="0" placeholder="Рука" />
+                    <button type="submit">Сохранить замеры</button>
+                  </form>
+                </article>
               </div>
-            </div>
-            <div id="weightBlock" class="stack spacious"></div>
-          </article>
+            </section>
 
-          <article class="card surface">
-            <div class="section-head">
-              <div>
-                <p class="eyebrow">Journal</p>
-                <h2>Журнал замеров</h2>
-              </div>
-            </div>
-            <div id="measurementBlock" class="stack spacious"></div>
-          </article>
+            <section class="tab-panel" data-panel="nutrition">
+              <div class="content-grid">
+                <article class="card glass wide">
+                  <div class="section-head">
+                    <div>
+                      <p class="eyebrow">Nutrition</p>
+                      <h2>История питания</h2>
+                    </div>
+                  </div>
+                  <div id="historyBlock" class="stack spacious"></div>
+                </article>
 
-          <article class="card surface wide">
-            <div class="section-head">
-              <div>
-                <p class="eyebrow">AI</p>
-                <h2>Задать вопрос нутрициологу</h2>
-              </div>
-            </div>
-            <form id="askForm" class="stack">
-              <textarea id="questionValue" rows="4" placeholder="Например: как добрать белок без протеина?"></textarea>
-              <button type="submit">Получить ответ</button>
-            </form>
-            <div id="answerBlock" class="stack spacious"></div>
-          </article>
+                <article class="card glass">
+                  <div class="section-head">
+                    <div>
+                      <p class="eyebrow">Journal</p>
+                      <h2>Журнал веса</h2>
+                    </div>
+                  </div>
+                  <div id="weightBlock" class="stack spacious"></div>
+                </article>
 
-          <article class="card surface wide">
-            <div class="section-head">
-              <div>
-                <p class="eyebrow">Plan</p>
-                <h2>Меню на день</h2>
+                <article class="card glass">
+                  <div class="section-head">
+                    <div>
+                      <p class="eyebrow">Journal</p>
+                      <h2>Журнал замеров</h2>
+                    </div>
+                  </div>
+                  <div id="measurementBlock" class="stack spacious"></div>
+                </article>
               </div>
-            </div>
-            <button id="loadMealPlan" type="button">Сгенерировать меню</button>
-            <div id="mealPlanBlock" class="stack spacious"></div>
-          </article>
+            </section>
+
+            <section class="tab-panel" data-panel="assistant">
+              <div class="content-grid">
+                <article class="card glass wide">
+                  <div class="section-head">
+                    <div>
+                      <p class="eyebrow">AI</p>
+                      <h2>Задать вопрос нутрициологу</h2>
+                    </div>
+                  </div>
+                  <form id="askForm" class="stack">
+                    <textarea id="questionValue" rows="4" placeholder="Например: как добрать белок без протеина?"></textarea>
+                    <button type="submit">Получить ответ</button>
+                  </form>
+                  <div id="answerBlock" class="stack spacious"></div>
+                </article>
+
+                <article class="card glass wide">
+                  <div class="section-head">
+                    <div>
+                      <p class="eyebrow">Plan</p>
+                      <h2>Меню на день</h2>
+                    </div>
+                  </div>
+                  <button id="loadMealPlan" type="button">Сгенерировать меню</button>
+                  <div id="mealPlanBlock" class="stack spacious"></div>
+                </article>
+              </div>
+            </section>
+          </div>
         </section>
       </section>
     </main>
