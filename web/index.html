@@ -3,10 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Nutriciolog - веб-кабинет</title>
+    <title>Nutriciolog — веб-кабинет</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/web/styles.css" />
   </head>
   <body>
+    <div class="page-glow page-glow-one"></div>
+    <div class="page-glow page-glow-two"></div>
+
     <main class="page">
       <section class="hero-shell">
         <div class="hero-copy glass">
@@ -27,7 +36,7 @@
               <div id="miniWeightChart" class="mini-chart"></div>
             </article>
 
-            <article class="mini-card">
+            <article class="mini-card accent-card">
               <div class="mini-head">
                 <span class="mini-label">Калории</span>
                 <span id="miniCaloriesCaption" class="mini-chip">сегодня</span>
@@ -68,15 +77,17 @@
             </div>
           </div>
 
-          <p id="statusLine" class="status">Сайт попробует автоматически открыть кабинет, если ты уже вошел.</p>
+          <p id="statusLine" class="status">
+            Сайт попробует автоматически открыть кабинет, если ты уже вошел через Telegram.
+          </p>
         </div>
       </section>
 
       <section id="dashboard" class="dashboard hidden">
-        <section class="overview card glass">
+        <section class="overview glass">
           <div class="overview-head">
             <div>
-              <p class="eyebrow">Dashboard</p>
+              <p class="eyebrow">Personal Dashboard</p>
               <h2 id="profileHeadline">Твой кабинет</h2>
               <p id="profileSubline" class="hint">Профиль, сводка по питанию и динамика тела в одном месте.</p>
             </div>
@@ -133,6 +144,21 @@
             </section>
 
             <section class="tab-panel" data-panel="progress">
+              <div class="progress-hero glass">
+                <div>
+                  <p class="eyebrow">Analytics</p>
+                  <h2>Динамика тела по неделе и месяцу</h2>
+                  <p class="hint">
+                    Смотри изменение веса и замеров по датам, сравнивай неделю с месяцем и замечай реальный прогресс.
+                  </p>
+                </div>
+
+                <div class="range-switch" role="group" aria-label="Период графиков">
+                  <button class="range-button active" type="button" data-range="7">Неделя</button>
+                  <button class="range-button" type="button" data-range="30">Месяц</button>
+                </div>
+              </div>
+
               <div class="content-grid">
                 <article class="card chart-card glass">
                   <div class="section-head">
@@ -140,7 +166,7 @@
                       <p class="eyebrow">Weight</p>
                       <h2>График веса</h2>
                     </div>
-                    <span class="chip">до 30 точек</span>
+                    <span id="weightChartRangeLabel" class="chip">За месяц</span>
                   </div>
                   <div id="weightChart" class="chart-shell"></div>
                 </article>
@@ -164,8 +190,9 @@
                   <div class="section-head">
                     <div>
                       <p class="eyebrow">Progress</p>
-                      <h2>Динамика изменений</h2>
+                      <h2>Изменения по датам</h2>
                     </div>
+                    <span id="progressRangeLabel" class="chip">За месяц</span>
                   </div>
                   <div id="progressBlock" class="metric-grid"></div>
                   <div id="progressTimeline" class="timeline"></div>
