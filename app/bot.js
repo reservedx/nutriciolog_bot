@@ -140,11 +140,12 @@ function createNextMealResultMenu(nextMealType, style) {
   ]);
 }
 
-function createMoreMenu() {
+function createMoreMenu(webAppUrl) {
   return Markup.inlineKeyboard([
     [Markup.button.callback("Меню на день", "menu:mealplan")],
     [Markup.button.callback("История записей", "menu:history")],
     [Markup.button.callback("Задать вопрос нутрициологу", "menu:ask")],
+    [Markup.button.url("Веб-интерфейс", webAppUrl)],
     [Markup.button.callback("В меню", "menu:home")]
   ]);
 }
@@ -618,6 +619,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
   const profileWizard = new Map();
   const pendingMode = new Map();
   const pendingContext = new Map();
+  const webAppUrl = process.env.WEB_APP_URL || "https://nutriciologbot-production.up.railway.app";
   const adminIds = new Set(
     String(process.env.TELEGRAM_ADMIN_IDS || process.env.TELEGRAM_ADMIN_ID || "742896049")
       .split(",")
@@ -767,10 +769,10 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
         "",
         "Меню на день: готовый рацион под твой профиль.",
         "История записей: последние приемы пищи и возможность удалить лишнее.",
-        "Подписка: статус доступа и информация по тарифу.",
-        "Задать вопрос нутрициологу: можно спросить про питание, белок, дефицит, продукты и т.д."
+        "Задать вопрос нутрициологу: можно спросить про питание, белок, дефицит, продукты и т.д.",
+        "Веб-интерфейс: откроет личный кабинет в браузере."
       ].join("\n"),
-      createMoreMenu()
+      createMoreMenu(webAppUrl)
     );
   }
 
@@ -925,7 +927,7 @@ async function promptNextMeal(ctx) {
     profileWizard.delete(String(ctx.from.id));
     pendingMode.set(String(ctx.from.id), "ask");
     pendingContext.delete(String(ctx.from.id));
-    return ctx.reply("Напиши свой вопрос по питанию. Например: «как добрать белок без протеина?»", createMoreMenu());
+    return ctx.reply("Напиши свой вопрос по питанию. Например: «как добрать белок без протеина?»", createMoreMenu(webAppUrl));
   }
 
   async function promptMealTextMode(ctx) {
@@ -1007,7 +1009,7 @@ async function promptNextMeal(ctx) {
     if (!(await requireActiveAccess(ctx))) return;
     const profile = databaseService.ensureUser(ctx.from);
     const answer = await nutritionService.answerNutritionQuestion(question, profile);
-    await ctx.reply(answer, createMoreMenu());
+    await ctx.reply(answer, createMoreMenu(webAppUrl));
   }
 
   async function sendMealPlan(ctx, period) {
@@ -1015,7 +1017,7 @@ async function promptNextMeal(ctx) {
     const profile = databaseService.ensureUser(ctx.from);
     await ctx.reply(`Составляю меню на ${period}...`);
     const plan = await nutritionService.generateMealPlan(profile, period);
-    await ctx.reply(plan, createMoreMenu());
+    await ctx.reply(plan, createMoreMenu(webAppUrl));
   }
 
   async function sendDietQuality(ctx) {
@@ -1507,7 +1509,7 @@ async function promptNextMeal(ctx) {
     }
 
     await ctx.answerCbQuery("Запись удалена");
-    await ctx.reply(`Запись #${entryId} удалена из дневника.`, createMoreMenu());
+    await ctx.reply(`Запись #${entryId} удалена из дневника.`, createMoreMenu(webAppUrl));
   });
 
   bot.on("pre_checkout_query", async (ctx) => {
@@ -1729,7 +1731,7 @@ async function promptNextMeal(ctx) {
         "",
         "Теперь тебе снова доступны анализ еды, дневник, прогресс, меню и вопросы."
       ].join("\n"),
-      createMoreMenu()
+      createMoreMenu(webAppUrl)
     );
   });
 
