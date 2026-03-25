@@ -83,6 +83,13 @@ function createDayMenu() {
   ]);
 }
 
+function createTargetsMenu() {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback("Изменить норму вручную", "menu:edit_targets")],
+    [Markup.button.callback("В меню", "menu:home")]
+  ]);
+}
+
 function getSuggestedNextMealTypes(summary) {
   const eatenTypes = new Set((summary?.meals || []).map((meal) => String(meal.meal_type || "").toLowerCase()));
 
@@ -513,6 +520,26 @@ function parseProfileCommand(text) {
   };
 }
 
+function parseTargetsCommand(text) {
+  const payload = String(text || "").trim();
+  const parts = payload.split("|").map((part) => part.trim());
+  if (parts.length !== 4) {
+    return null;
+  }
+
+  const [dailyCalories, dailyProtein, dailyFat, dailyCarbs] = parts.map((value) => Number(value));
+  if ([dailyCalories, dailyProtein, dailyFat, dailyCarbs].some((value) => Number.isNaN(value))) {
+    return null;
+  }
+
+  return {
+    daily_calories: dailyCalories,
+    daily_protein: dailyProtein,
+    daily_fat: dailyFat,
+    daily_carbs: dailyCarbs
+  };
+}
+
 function createWizardPrompt(step, draft) {
   switch (step) {
     case "display_name":
@@ -783,7 +810,24 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
 
   async function showTargets(ctx) {
     const { profile } = getProfileAndAccess(ctx);
-    return ctx.reply(formatTargets(profile), createDayMenu());
+    return ctx.reply(formatTargets(profile), createTargetsMenu());
+  }
+
+  async function promptTargetsMode(ctx) {
+    if (!(await requireActiveAccess(ctx))) return;
+    profileWizard.delete(String(ctx.from.id));
+    pendingMode.set(String(ctx.from.id), "targets");
+    pendingContext.delete(String(ctx.from.id));
+    return ctx.reply(
+      [
+        "Отправь норму в формате:",
+        "калории | белки | жиры | углеводы",
+        "",
+        "Пример:",
+        "2200 | 150 | 70 | 220"
+      ].join("\n"),
+      createTargetsMenu()
+    );
   }
 
   async function showToday(ctx) {
@@ -1084,6 +1128,36 @@ async function promptNextMeal(ctx) {
 
   bot.command("profile", showProfile);
   bot.command("targets", showTargets);
+  bot.command("settargets", async (ctx) => {
+    if (!(await requireActiveAccess(ctx))) return;
+    const payload = ctx.message.text.replace("/settargets", "").trim();
+    if (!payload) {
+      return promptTargetsMode(ctx);
+    }
+
+    const parsed = parseTargetsCommand(payload);
+    if (!parsed) {
+      return ctx.reply(
+        [
+          "Формат команды:",
+          "/settargets калории | белки | жиры | углеводы",
+          "Пример:",
+          "/settargets 2200 | 150 | 70 | 220"
+        ].join("\n"),
+        createTargetsMenu()
+      );
+    }
+
+    const profile = databaseService.ensureUser(ctx.from);
+    const updatedProfile = databaseService.updateUserProfile({
+      telegram_user_id: String(ctx.from.id),
+      display_name: profile.display_name,
+      goal: profile.goal,
+      ...parsed
+    });
+
+    return ctx.reply(`Норма КБЖУ обновлена.\n\n${formatTargets(updatedProfile)}`, createTargetsMenu());
+  });
   bot.command("today", showToday);
   bot.command("history", showHistory);
   bot.command("setup", startProfileSetup);
@@ -1259,6 +1333,7 @@ async function promptNextMeal(ctx) {
 
   bot.action("menu:profile", async (ctx) => { await ctx.answerCbQuery(); await showProfile(ctx); });
   bot.action("menu:targets", async (ctx) => { await ctx.answerCbQuery(); await showTargets(ctx); });
+  bot.action("menu:edit_targets", async (ctx) => { await ctx.answerCbQuery(); await promptTargetsMode(ctx); });
   bot.action("menu:today", async (ctx) => { await ctx.answerCbQuery(); await showToday(ctx); });
   bot.action("menu:history", async (ctx) => { await ctx.answerCbQuery(); await showHistory(ctx); });
   bot.action("menu:subscription", async (ctx) => { await ctx.answerCbQuery(); await showSubscription(ctx); });
@@ -1551,6 +1626,35 @@ async function promptNextMeal(ctx) {
 
       databaseService.saveMeasurementLog(ctx.from.id, measurement);
       return ctx.reply("Замеры сохранены в журнал.", createDayMenu());
+    }
+
+    if (currentMode === "targets") {
+      if (!(await requireActiveAccess(ctx))) return;
+      pendingMode.delete(String(ctx.from.id));
+      pendingContext.delete(String(ctx.from.id));
+      const parsed = parseTargetsCommand(ctx.message.text.trim());
+      if (!parsed) {
+        return ctx.reply(
+          [
+            "Не смог разобрать норму.",
+            "Используй формат:",
+            "калории | белки | жиры | углеводы",
+            "",
+            "Пример: 2200 | 150 | 70 | 220"
+          ].join("\n"),
+          createTargetsMenu()
+        );
+      }
+
+      const profile = databaseService.ensureUser(ctx.from);
+      const updatedProfile = databaseService.updateUserProfile({
+        telegram_user_id: String(ctx.from.id),
+        display_name: profile.display_name,
+        goal: profile.goal,
+        ...parsed
+      });
+
+      return ctx.reply(`Норма КБЖУ обновлена.\n\n${formatTargets(updatedProfile)}`, createTargetsMenu());
     }
 
     if (currentMode === "meal_correction") {
