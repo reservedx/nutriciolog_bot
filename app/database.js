@@ -635,6 +635,64 @@ export async function createDatabaseService({ databasePath }) {
       };
     },
 
+    getAdminStats() {
+      const todayFrom = startOfDayIso();
+      const totalUsers = Number(getOne("SELECT COUNT(*) AS count FROM users")?.count || 0);
+      const usersWithProfile = Number(
+        getOne("SELECT COUNT(*) AS count FROM users WHERE daily_calories IS NOT NULL")?.count || 0
+      );
+      const newUsersToday = Number(
+        getOne("SELECT COUNT(*) AS count FROM users WHERE created_at >= ?", [todayFrom])?.count || 0
+      );
+      const activeTrials = Number(
+        getOne(
+          "SELECT COUNT(*) AS count FROM users WHERE trial_ends_at IS NOT NULL AND datetime(trial_ends_at) > datetime('now')",
+          []
+        )?.count || 0
+      );
+      const paidUsers = Number(
+        getOne(
+          "SELECT COUNT(*) AS count FROM users WHERE subscription_ends_at IS NOT NULL AND datetime(subscription_ends_at) > datetime('now')",
+          []
+        )?.count || 0
+      );
+      const mealsToday = Number(
+        getOne("SELECT COUNT(*) AS count FROM meal_entries WHERE created_at >= ?", [todayFrom])?.count || 0
+      );
+      const totalMeals = Number(getOne("SELECT COUNT(*) AS count FROM meal_entries")?.count || 0);
+      const totalWeightLogs = Number(getOne("SELECT COUNT(*) AS count FROM weight_logs")?.count || 0);
+      const totalMeasurementLogs = Number(getOne("SELECT COUNT(*) AS count FROM measurement_logs")?.count || 0);
+      const totalPayments = Number(getOne("SELECT COUNT(*) AS count FROM payment_logs")?.count || 0);
+
+      const latestUsers = getMany(
+        `
+          SELECT
+            telegram_user_id,
+            telegram_username,
+            display_name,
+            created_at,
+            access_status
+          FROM users
+          ORDER BY datetime(created_at) DESC
+          LIMIT 5
+        `
+      );
+
+      return {
+        totalUsers,
+        usersWithProfile,
+        newUsersToday,
+        activeTrials,
+        paidUsers,
+        mealsToday,
+        totalMeals,
+        totalWeightLogs,
+        totalMeasurementLogs,
+        totalPayments,
+        latestUsers
+      };
+    },
+
     seedDemoData(telegramUserId) {
       const user = getUserByIdentifier(telegramUserId);
       if (!user) return null;

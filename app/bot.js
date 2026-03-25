@@ -451,6 +451,36 @@ function formatProgress(weightProgress, measurementProgress) {
   return sections.join("\n");
 }
 
+function formatAdminStats(stats) {
+  const latestUsersLines =
+    stats.latestUsers.length > 0
+      ? stats.latestUsers.map((user) => {
+          const username = user.telegram_username ? `@${user.telegram_username}` : "без username";
+          const name = user.display_name || "без имени";
+          return `- ${formatJournalDate(user.created_at)} — ${name}, ${username}, ${user.access_status || "unknown"}`;
+        })
+      : ["- пока нет пользователей"];
+
+  return [
+    "Статистика бота",
+    "",
+    `Пользователей всего: ${stats.totalUsers}`,
+    `Новых сегодня: ${stats.newUsersToday}`,
+    `С заполненным профилем: ${stats.usersWithProfile}`,
+    `Активный триал: ${stats.activeTrials}`,
+    `Платных пользователей: ${stats.paidUsers}`,
+    "",
+    `Приемов пищи всего: ${stats.totalMeals}`,
+    `Приемов пищи сегодня: ${stats.mealsToday}`,
+    `Записей веса: ${stats.totalWeightLogs}`,
+    `Записей замеров: ${stats.totalMeasurementLogs}`,
+    `Платежей: ${stats.totalPayments}`,
+    "",
+    "Последние пользователи:",
+    ...latestUsersLines
+  ].join("\n");
+}
+
 function parseProfileCommand(text) {
   const payload = text.replace("/setprofile", "").trim();
   const parts = payload.split("|").map((part) => part.trim());
@@ -547,6 +577,12 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
   const profileWizard = new Map();
   const pendingMode = new Map();
   const pendingContext = new Map();
+  const adminIds = new Set(
+    String(process.env.TELEGRAM_ADMIN_IDS || process.env.TELEGRAM_ADMIN_ID || "742896049")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+  );
 
   function getProfileAndAccess(ctx) {
     const profile = databaseService.ensureUser(ctx.from);
@@ -571,6 +607,21 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     );
 
     return null;
+  }
+
+  function isAdmin(ctx) {
+    return adminIds.has(String(ctx.from?.id || ""));
+  }
+
+  async function showAdminStats(ctx) {
+    databaseService.ensureUser(ctx.from);
+
+    if (!isAdmin(ctx)) {
+      return ctx.reply("Эта команда доступна только владельцу.");
+    }
+
+    const stats = databaseService.getAdminStats();
+    return ctx.reply(formatAdminStats(stats), createHomeMenu(databaseService.getUserByTelegramId(ctx.from.id)));
   }
 
   async function createSubscriptionInvoiceLink(ctx) {
@@ -1018,6 +1069,7 @@ async function promptNextMeal(ctx) {
   bot.command("setup", startProfileSetup);
   bot.command("progress", showProgress);
   bot.command("quality", sendDietQuality);
+  bot.command("adminstats", showAdminStats);
   bot.command("nextmeal", async (ctx) => {
     if (!(await requireActiveAccess(ctx))) return;
     const payload = ctx.message.text.replace("/nextmeal", "").trim().toLowerCase();
