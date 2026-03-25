@@ -20,7 +20,6 @@ const el = {
   profileHeadline: $("#profileHeadline"),
   profileSubline: $("#profileSubline"),
   profileBlock: $("#profileBlock"),
-  targetsBlock: $("#targetsBlock"),
   todayBlock: $("#todayBlock"),
   macroBars: $("#macroBars"),
   progressBlock: $("#progressBlock"),
@@ -47,15 +46,10 @@ const el = {
   miniMeasurementChart: $("#miniMeasurementChart"),
   weightForm: $("#weightForm"),
   measurementForm: $("#measurementForm"),
-  targetsForm: $("#targetsForm"),
   mealForm: $("#mealForm"),
   askForm: $("#askForm"),
   loadMealPlan: $("#loadMealPlan"),
   weightValue: $("#weightValue"),
-  targetCalories: $("#targetCalories"),
-  targetProtein: $("#targetProtein"),
-  targetFat: $("#targetFat"),
-  targetCarbs: $("#targetCarbs"),
   waistValue: $("#waistValue"),
   thighValue: $("#thighValue"),
   armValue: $("#armValue"),
@@ -463,20 +457,6 @@ function renderProfile(profile) {
   ]);
 }
 
-function renderTargets(profile) {
-  fill(el.targetsBlock, [
-    metric("Калории", `${profile.daily_calories || 0} ккал`),
-    metric("Белки", `${profile.daily_protein || 0} г`),
-    metric("Жиры", `${profile.daily_fat || 0} г`),
-    metric("Углеводы", `${profile.daily_carbs || 0} г`)
-  ]);
-
-  el.targetCalories.value = profile.daily_calories ?? "";
-  el.targetProtein.value = profile.daily_protein ?? "";
-  el.targetFat.value = profile.daily_fat ?? "";
-  el.targetCarbs.value = profile.daily_carbs ?? "";
-}
-
 function renderToday(today) {
   const meals = today?.meals || [];
   const totals = today?.totals || {};
@@ -652,7 +632,6 @@ function renderDashboardSections() {
   renderHeroCards(dashboard, filteredWeight, filteredMeasurements);
   renderSummary(dashboard);
   renderProfile(dashboard.profile);
-  renderTargets(dashboard.profile);
   renderToday(dashboard.today);
   renderMacroBars(dashboard.profile, dashboard.today);
   renderProgressPremium(weightLogs, measurementLogs);
@@ -860,32 +839,6 @@ async function submitMeasurements(event) {
   }
 }
 
-async function submitTargets(event) {
-  event.preventDefault();
-  const payload = {
-    daily_calories: Number(el.targetCalories.value || 0),
-    daily_protein: Number(el.targetProtein.value || 0),
-    daily_fat: Number(el.targetFat.value || 0),
-    daily_carbs: Number(el.targetCarbs.value || 0)
-  };
-
-  if (Object.values(payload).some((value) => !Number.isFinite(value) || value < 0)) {
-    return setStatus("Проверь значения нормы: нужны числа без отрицательных значений.", "error");
-  }
-
-  try {
-    await request("/api/profile", {
-      method: "POST",
-      body: JSON.stringify(payload)
-    });
-    await loadDashboardBySession();
-    setActiveTab("overview");
-    setStatus("Норма КБЖУ обновлена вручную.", "success");
-  } catch (error) {
-    setStatus(error.message, "error");
-  }
-}
-
 async function submitMeal(event) {
   event.preventDefault();
   const description = el.mealDescription.value.trim();
@@ -1006,7 +959,6 @@ el.logoutButton.addEventListener("click", () => logout().catch((error) => setSta
 el.seedDemoButton.addEventListener("click", () => seedDemoData().catch((error) => setStatus(error.message, "error")));
 el.weightForm.addEventListener("submit", submitWeight);
 el.measurementForm.addEventListener("submit", submitMeasurements);
-el.targetsForm.addEventListener("submit", submitTargets);
 el.mealForm.addEventListener("submit", submitMeal);
 el.askForm.addEventListener("submit", submitQuestion);
 el.loadMealPlan.addEventListener("click", loadMealPlan);
