@@ -26,6 +26,14 @@ const mealTypeOptions = {
   snack: "перекус"
 };
 
+const nextMealStyles = {
+  balanced: "сбалансированный",
+  protein: "белковый",
+  quick: "быстрый",
+  budget: "подешевле",
+  light: "легкий"
+};
+
 function round(value) {
   return Math.round(Number(value) || 0);
 }
@@ -66,9 +74,34 @@ function createDayMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("Сводка за сегодня", "menu:today")],
     [Markup.button.callback("Разбор питания", "menu:quality")],
+    [Markup.button.callback("Что мне съесть дальше?", "menu:next_meal")],
     [Markup.button.callback("Обновить вес", "menu:weight"), Markup.button.callback("Журнал веса", "menu:weight_history")],
     [Markup.button.callback("Добавить замеры", "menu:measure")],
     [Markup.button.callback("Прогресс", "menu:progress")],
+    [Markup.button.callback("В меню", "menu:home")]
+  ]);
+}
+
+function createNextMealTypeMenu() {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback("Ужин", "nextmealtype:dinner"), Markup.button.callback("Перекус", "nextmealtype:snack")],
+    [Markup.button.callback("В меню", "menu:home")]
+  ]);
+}
+
+function createNextMealStyleMenu(nextMealType) {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback("Сбалансированный", `nextmeal:${nextMealType}:balanced`)],
+    [Markup.button.callback("Белковый", `nextmeal:${nextMealType}:protein`), Markup.button.callback("Легкий", `nextmeal:${nextMealType}:light`)],
+    [Markup.button.callback("Быстрый", `nextmeal:${nextMealType}:quick`), Markup.button.callback("Подешевле", `nextmeal:${nextMealType}:budget`)],
+    [Markup.button.callback("Сменить ужин/перекус", "menu:next_meal"), Markup.button.callback("В меню", "menu:home")]
+  ]);
+}
+
+function createNextMealResultMenu(nextMealType, style) {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback("Еще варианты", `nextmeal:${nextMealType}:${style}`)],
+    [Markup.button.callback("Выбрать другой формат", `nextmealtype:${nextMealType}`)],
     [Markup.button.callback("В меню", "menu:home")]
   ]);
 }
@@ -259,6 +292,24 @@ function formatTodaySummary(summary) {
     lines.push(`- ${meal.meal_type || "не указано"}: ${meal.dish_name}, ${round(meal.calories)} ккал`);
   }
   return lines.join("\n");
+}
+
+function formatRemainingForNextMeal(summary) {
+  if (!summary?.user?.daily_calories) {
+    return "Сначала лучше настроить профиль, чтобы я точнее считал остаток по дню и подбирал ужин или перекус.";
+  }
+
+  const remainingCalories = round(summary.user.daily_calories) - round(summary.totals.calories);
+  const remainingProtein = round(summary.user.daily_protein) - round(summary.totals.protein);
+  const remainingFat = round(summary.user.daily_fat) - round(summary.totals.fat);
+  const remainingCarbs = round(summary.user.daily_carbs) - round(summary.totals.carbs);
+
+  return [
+    `Остаток на сегодня: ~${remainingCalories} ккал`,
+    `Белки: ~${remainingProtein} г`,
+    `Жиры: ~${remainingFat} г`,
+    `Углеводы: ~${remainingCarbs} г`
+  ].join("\n");
 }
 
 function formatRecentMeals(history) {
@@ -670,6 +721,49 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     return ctx.reply(formatMeasurementHistory(history), createDayMenu());
   }
 
+  async function promptNextMeal(ctx) {
+    if (!(await requireActiveAccess(ctx))) return;
+    const summary = databaseService.getTodaySummary(ctx.from.id);
+    return ctx.reply(
+      [
+        "Подберу следующий прием пищи по твоему дневнику за сегодня.",
+        "",
+        formatRemainingForNextMeal(summary),
+        "",
+        "Сначала выбери, что именно тебе нужно."
+      ].join("\n"),
+      createNextMealTypeMenu()
+    );
+  }
+
+  async function sendNextMealSuggestion(ctx, nextMealType, style) {
+    if (!(await requireActiveAccess(ctx))) return;
+    const profile = databaseService.ensureUser(ctx.from);
+    const summary = databaseService.getTodaySummary(ctx.from.id);
+
+    if (!profile.daily_calories) {
+      return ctx.reply(
+        "Чтобы я мог точно подобрать следующий прием пищи, сначала настрой профиль и дневную норму.",
+        createStartMenu(profile)
+      );
+    }
+
+    if (!summary || summary.meals.length === 0) {
+      return ctx.reply(
+        "Пока не из чего подбирать следующий прием пищи. Сначала добавь хотя бы один прием пищи за сегодня.",
+        createAddFoodMenu()
+      );
+    }
+
+    await ctx.reply(`Считаю остаток по дню и подбираю ${nextMealType === "dinner" ? "ужин" : "перекус"}...`);
+    const answer = await nutritionService.suggestNextMeal(profile, summary, {
+      nextMealType: nextMealType === "dinner" ? "ужин" : "перекус",
+      style: nextMealStyles[style] || nextMealStyles.balanced
+    });
+
+    return ctx.reply(answer, createNextMealResultMenu(nextMealType, style));
+  }
+
   async function startProfileSetup(ctx) {
     databaseService.ensureUser(ctx.from);
     pendingMode.delete(String(ctx.from.id));
@@ -898,6 +992,23 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
   bot.command("setup", startProfileSetup);
   bot.command("progress", showProgress);
   bot.command("quality", sendDietQuality);
+  bot.command("nextmeal", async (ctx) => {
+    if (!(await requireActiveAccess(ctx))) return;
+    const payload = ctx.message.text.replace("/nextmeal", "").trim().toLowerCase();
+
+    if (!payload) {
+      return promptNextMeal(ctx);
+    }
+
+    const nextMealType = payload.includes("перекус") ? "snack" : "dinner";
+    let style = "balanced";
+    if (payload.includes("белк")) style = "protein";
+    if (payload.includes("быстр")) style = "quick";
+    if (payload.includes("деш")) style = "budget";
+    if (payload.includes("легк")) style = "light";
+
+    return sendNextMealSuggestion(ctx, nextMealType, style);
+  });
   bot.command("subscription", showSubscription);
   bot.command("buy", sendSubscriptionLink);
   bot.command("paysupport", (ctx) => ctx.reply(billingConfig.paySupportText, createSubscriptionMenu()));
@@ -1058,6 +1169,37 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
   bot.action("menu:progress", async (ctx) => { await ctx.answerCbQuery(); await showProgress(ctx); });
   bot.action("menu:mealplan", async (ctx) => { await ctx.answerCbQuery(); await sendMealPlan(ctx, "день"); });
   bot.action("menu:quality", async (ctx) => { await ctx.answerCbQuery(); await sendDietQuality(ctx); });
+  bot.action("menu:next_meal", async (ctx) => { await ctx.answerCbQuery(); await promptNextMeal(ctx); });
+
+  bot.action(/nextmealtype:(.+)/, async (ctx) => {
+    const nextMealType = ctx.match[1];
+    if (!["dinner", "snack"].includes(nextMealType)) {
+      await ctx.answerCbQuery("Неизвестный вариант");
+      return;
+    }
+
+    await ctx.answerCbQuery(nextMealType === "dinner" ? "Подберем ужин" : "Подберем перекус");
+    await ctx.reply(
+      [
+        `Выбрано: ${nextMealType === "dinner" ? "ужин" : "перекус"}.`,
+        "Теперь выбери, в каком стиле подобрать варианты."
+      ].join("\n"),
+      createNextMealStyleMenu(nextMealType)
+    );
+  });
+
+  bot.action(/nextmeal:(.+):(.+)/, async (ctx) => {
+    const nextMealType = ctx.match[1];
+    const style = ctx.match[2];
+
+    if (!["dinner", "snack"].includes(nextMealType) || !nextMealStyles[style]) {
+      await ctx.answerCbQuery("Неизвестный вариант");
+      return;
+    }
+
+    await ctx.answerCbQuery("Подбираю варианты");
+    await sendNextMealSuggestion(ctx, nextMealType, style);
+  });
 
   bot.action("menu:cancel_setup", async (ctx) => {
     profileWizard.delete(String(ctx.from.id));

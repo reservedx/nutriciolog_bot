@@ -110,6 +110,21 @@ function mealsToText(summary) {
   ].join("\n");
 }
 
+function remainingToText(profile, summary) {
+  const totals = summary?.totals || {};
+  const remainingCalories = Number(profile?.daily_calories || 0) - Number(totals.calories || 0);
+  const remainingProtein = Number(profile?.daily_protein || 0) - Number(totals.protein || 0);
+  const remainingFat = Number(profile?.daily_fat || 0) - Number(totals.fat || 0);
+  const remainingCarbs = Number(profile?.daily_carbs || 0) - Number(totals.carbs || 0);
+
+  return [
+    `Остаток калорий: ${Math.round(remainingCalories)}`,
+    `Остаток белка: ${Math.round(remainingProtein)}`,
+    `Остаток жиров: ${Math.round(remainingFat)}`,
+    `Остаток углеводов: ${Math.round(remainingCarbs)}`
+  ].join("\n");
+}
+
 export function createNutritionService({ apiKey, model }) {
   const client = new OpenAI({ apiKey });
 
@@ -242,6 +257,49 @@ export function createNutritionService({ apiKey, model }) {
           {
             role: "user",
             content: [{ type: "input_text", text: `Профиль пользователя:\n${profileToText(profile)}\n\nДневник за сегодня:\n${mealsToText(summary)}\n\nСделай короткий разбор качества питания и дай 3 понятные рекомендации.` }]
+          }
+        ]
+      });
+
+      return response.output_text.trim();
+    },
+
+    async suggestNextMeal(profile, summary, options = {}) {
+      const nextMealType = options.nextMealType || "ужин";
+      const style = options.style || "сбалансированный";
+
+      const response = await client.responses.create({
+        model,
+        input: [
+          {
+            role: "system",
+            content: [
+              {
+                type: "input_text",
+                text: `${russianSystemPrompt} Ты помогаешь подобрать следующий прием пищи на сегодня. Учитывай норму пользователя, уже съеденное за день и остаток по калориям и БЖУ. Ответ должен быть очень практичным: сначала коротко скажи, сколько примерно осталось по калориям и на что сделать упор, затем предложи 3 варианта следующего приема пищи. Для каждого варианта укажи примерное КБЖУ. Отвечай компактно, структурированно и без воды.`
+              }
+            ]
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: [
+                  `Профиль пользователя:\n${profileToText(profile)}`,
+                  `Дневник за сегодня:\n${mealsToText(summary)}`,
+                  `Остаток на сегодня:\n${remainingToText(profile, summary)}`,
+                  `Нужно подобрать: ${nextMealType}`,
+                  `Желаемый формат: ${style}`,
+                  "",
+                  "Сделай ответ в таком духе:",
+                  "1. Короткая сводка остатка.",
+                  "2. Три варианта еды.",
+                  "3. Кому какой вариант лучше подходит.",
+                  "4. Если лимит по жирам или углеводам уже почти выбран, явно предупреди."
+                ].join("\n\n")
+              }
+            ]
           }
         ]
       });
