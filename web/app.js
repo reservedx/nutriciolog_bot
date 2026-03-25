@@ -381,6 +381,51 @@ async function bootstrapTelegramLogin() {
   }
 }
 
+function getTelegramAuthFromUrl() {
+  const url = new URL(window.location.href);
+  const keys = ["id", "first_name", "last_name", "username", "photo_url", "auth_date", "hash"];
+  const payload = {};
+
+  for (const key of keys) {
+    const value = url.searchParams.get(key);
+    if (value) {
+      payload[key] = value;
+    }
+  }
+
+  return payload.id && payload.hash ? payload : null;
+}
+
+function clearTelegramAuthFromUrl() {
+  const url = new URL(window.location.href);
+  ["id", "first_name", "last_name", "username", "photo_url", "auth_date", "hash"].forEach((key) => {
+    url.searchParams.delete(key);
+  });
+  window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+}
+
+async function restoreTelegramAuthFromUrl() {
+  const payload = getTelegramAuthFromUrl();
+  if (!payload) {
+    return false;
+  }
+
+  try {
+    setStatus("Подтверждаю вход через Telegram...", "muted");
+    await request("/api/auth/telegram", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    clearTelegramAuthFromUrl();
+    await loadDashboardBySession();
+    return true;
+  } catch (error) {
+    clearTelegramAuthFromUrl();
+    setStatus(error.message, "error");
+    return false;
+  }
+}
+
 async function restoreSession() {
   try {
     await request("/api/me");
@@ -408,4 +453,8 @@ elements.telegramUserId.addEventListener("keydown", (event) => {
 });
 
 bootstrapTelegramLogin();
-restoreSession();
+restoreTelegramAuthFromUrl().then((handled) => {
+  if (!handled) {
+    restoreSession();
+  }
+});
