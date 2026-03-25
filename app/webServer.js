@@ -335,6 +335,31 @@ export function createWebServer({ port, databaseService, nutritionService, teleg
         return sendJson(res, 200, { profile });
       }
 
+      if (req.method === "POST" && pathname === "/api/profile") {
+        const body = await readJsonBody(req);
+        const identifier = getIdentifierFromBody(body, req, sessionSecret);
+        if (!identifier) {
+          return sendJson(res, 401, { error: "Unauthorized" });
+        }
+
+        const profile = databaseService.getUserByIdentifier(identifier);
+        if (!profile) {
+          return sendJson(res, 404, { error: "Profile not found" });
+        }
+
+        const updatedProfile = databaseService.updateUserProfile({
+          telegram_user_id: String(profile.telegram_user_id),
+          display_name: body.display_name || profile.display_name,
+          goal: body.goal || profile.goal,
+          daily_calories: Number(body.daily_calories ?? profile.daily_calories ?? 0),
+          daily_protein: Number(body.daily_protein ?? profile.daily_protein ?? 0),
+          daily_fat: Number(body.daily_fat ?? profile.daily_fat ?? 0),
+          daily_carbs: Number(body.daily_carbs ?? profile.daily_carbs ?? 0)
+        });
+
+        return sendJson(res, 200, { profile: updatedProfile });
+      }
+
       if (req.method === "GET" && pathname === "/api/dashboard") {
         const identifier = getEffectiveIdentifier(req, url, sessionSecret);
         if (!identifier) {
