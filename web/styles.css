@@ -257,6 +257,10 @@ h2 {
   height: 76px;
 }
 
+.ghost-sparkline {
+  filter: saturate(0.9);
+}
+
 .sparkline-empty {
   height: 76px;
 }

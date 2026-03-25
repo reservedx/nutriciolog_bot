@@ -232,10 +232,35 @@ function emptyChart(node, message) {
   node.innerHTML = `<div class="chart-empty">${message}</div>`;
 }
 
+function renderGhostSpark(node, color) {
+  const values = [42, 44, 43, 47, 46, 49, 51];
+  const width = 220;
+  const height = 76;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const chartPoints = coords(values, width, height, min, max, (point) => point);
+  const line = linePath(chartPoints);
+  const area = areaPath(chartPoints, height);
+  const gradientId = `ghost-${Math.random().toString(36).slice(2, 8)}`;
+
+  node.innerHTML = `
+    <svg class="sparkline-svg ghost-sparkline" viewBox="0 0 ${width} ${height}" aria-hidden="true">
+      <defs>
+        <linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${color}" stop-opacity="0.18"></stop>
+          <stop offset="100%" stop-color="${color}" stop-opacity="0"></stop>
+        </linearGradient>
+      </defs>
+      <path d="${area}" fill="url(#${gradientId})"></path>
+      <path d="${line}" fill="none" stroke="${color}" stroke-opacity="0.45" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+  `;
+}
+
 function spark(node, values, color) {
   const points = values.filter((value) => Number.isFinite(value));
   if (!points.length) {
-    node.innerHTML = '<div class="sparkline-empty"></div>';
+    renderGhostSpark(node, color);
     return;
   }
 
@@ -923,7 +948,6 @@ async function bootstrapTelegramLogin() {
 
     el.telegramLoginWidget.innerHTML = "";
     el.telegramLoginWidget.append(script);
-    setStatus("Вход через Telegram готов.", "muted");
   } catch (error) {
     setStatus(error.message, "error");
   }
@@ -972,6 +996,9 @@ el.tabButtons.forEach((button) => button.addEventListener("click", () => setActi
 el.rangeButtons.forEach((button) => button.addEventListener("click", () => setChartRange(Number(button.dataset.range))));
 
 bootstrapTelegramLogin();
+renderGhostSpark(el.miniWeightChart, "#25d0a5");
+renderGhostSpark(el.miniCaloriesChart, "#f0bc66");
+renderGhostSpark(el.miniMeasurementChart, "#56b6ff");
 const authFlags = consumeAuthResultFlags();
 restoreSession().then(() => {
   if (authFlags.authError) {
