@@ -187,9 +187,31 @@ export async function createDatabaseService({ databasePath }) {
     return getOne("SELECT * FROM users WHERE telegram_user_id = ?", [String(telegramUserId)]);
   }
 
+  function normalizeIdentifier(identifier) {
+    return String(identifier || "").trim();
+  }
+
+  function getUserByIdentifier(identifier) {
+    const normalized = normalizeIdentifier(identifier);
+    if (!normalized) {
+      return null;
+    }
+
+    if (/^\d+$/.test(normalized)) {
+      return getUserByTelegramId(normalized);
+    }
+
+    const username = normalized.replace(/^@+/, "").toLowerCase();
+    return getOne("SELECT * FROM users WHERE LOWER(telegram_username) = ?", [username]);
+  }
+
   return {
     getUserByTelegramId(telegramUserId) {
       return getUserByTelegramId(telegramUserId);
+    },
+
+    getUserByIdentifier(identifier) {
+      return getUserByIdentifier(identifier);
     },
 
     ensureUser(telegramUser) {
@@ -416,7 +438,7 @@ export async function createDatabaseService({ databasePath }) {
     },
 
     saveWeightLog(telegramUserId, weight, note = null) {
-      const user = getUserByTelegramId(telegramUserId);
+      const user = getUserByIdentifier(telegramUserId);
       if (!user) return null;
 
       db.run(`INSERT INTO weight_logs (user_id, weight, note) VALUES (?, ?, ?)`, [user.id, weight, note]);
@@ -426,7 +448,7 @@ export async function createDatabaseService({ databasePath }) {
     },
 
     saveMeasurementLog(telegramUserId, measurement) {
-      const user = getUserByTelegramId(telegramUserId);
+      const user = getUserByIdentifier(telegramUserId);
       if (!user) return null;
 
       db.run(
@@ -440,7 +462,7 @@ export async function createDatabaseService({ databasePath }) {
     },
 
     getWeightLogs(telegramUserId, limit = 20) {
-      const user = getUserByTelegramId(telegramUserId);
+      const user = getUserByIdentifier(telegramUserId);
       if (!user) return null;
 
       const logs = getMany(`SELECT * FROM weight_logs WHERE user_id = ? ORDER BY datetime(created_at) DESC LIMIT ?`, [user.id, limit]);
@@ -449,7 +471,7 @@ export async function createDatabaseService({ databasePath }) {
     },
 
     getMeasurementLogs(telegramUserId, limit = 20) {
-      const user = getUserByTelegramId(telegramUserId);
+      const user = getUserByIdentifier(telegramUserId);
       if (!user) return null;
 
       const logs = getMany(`SELECT * FROM measurement_logs WHERE user_id = ? ORDER BY datetime(created_at) DESC LIMIT ?`, [user.id, limit]);
@@ -521,7 +543,7 @@ export async function createDatabaseService({ databasePath }) {
     },
 
     clearUserJournal(telegramUserId) {
-      const user = getUserByTelegramId(telegramUserId);
+      const user = getUserByIdentifier(telegramUserId);
       if (!user) return null;
 
       const mealCount = getOne("SELECT COUNT(*) AS count FROM meal_entries WHERE user_id = ?", [user.id])?.count || 0;
@@ -541,7 +563,7 @@ export async function createDatabaseService({ databasePath }) {
     },
 
     getTodaySummary(telegramUserId) {
-      const user = getUserByTelegramId(telegramUserId);
+      const user = getUserByIdentifier(telegramUserId);
       if (!user) return null;
 
       const meals = getMany(
@@ -569,7 +591,7 @@ export async function createDatabaseService({ databasePath }) {
     },
 
     getRecentMeals(telegramUserId, limit = 5) {
-      const user = getUserByTelegramId(telegramUserId);
+      const user = getUserByIdentifier(telegramUserId);
       if (!user) return null;
 
       const meals = getMany(
@@ -588,7 +610,7 @@ export async function createDatabaseService({ databasePath }) {
     },
 
     getDashboard(telegramUserId) {
-      const profile = getUserByTelegramId(telegramUserId);
+      const profile = getUserByIdentifier(telegramUserId);
       if (!profile) return null;
 
       return {

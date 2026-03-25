@@ -57,8 +57,8 @@ function clampLimit(value, fallback = 20) {
   return Math.min(parsed, 100);
 }
 
-function getTelegramUserId(url) {
-  return url.searchParams.get("telegram_user_id")?.trim();
+function getUserIdentifier(url) {
+  return (url.searchParams.get("telegram_user_id") || url.searchParams.get("identifier"))?.trim();
 }
 
 export function createWebServer({ port, databaseService, nutritionService }) {
@@ -72,12 +72,12 @@ export function createWebServer({ port, databaseService, nutritionService }) {
       }
 
       if (req.method === "GET" && pathname === "/api/profile") {
-        const telegramUserId = getTelegramUserId(url);
-        if (!telegramUserId) {
-          return sendJson(res, 400, { error: "telegram_user_id is required" });
+        const identifier = getUserIdentifier(url);
+        if (!identifier) {
+          return sendJson(res, 400, { error: "telegram_user_id or identifier is required" });
         }
 
-        const profile = databaseService.getUserByTelegramId(telegramUserId);
+        const profile = databaseService.getUserByIdentifier(identifier);
         if (!profile) {
           return sendJson(res, 404, { error: "Profile not found" });
         }
@@ -86,12 +86,12 @@ export function createWebServer({ port, databaseService, nutritionService }) {
       }
 
       if (req.method === "GET" && pathname === "/api/dashboard") {
-        const telegramUserId = getTelegramUserId(url);
-        if (!telegramUserId) {
-          return sendJson(res, 400, { error: "telegram_user_id is required" });
+        const identifier = getUserIdentifier(url);
+        if (!identifier) {
+          return sendJson(res, 400, { error: "telegram_user_id or identifier is required" });
         }
 
-        const dashboard = databaseService.getDashboard(telegramUserId);
+        const dashboard = databaseService.getDashboard(identifier);
         if (!dashboard) {
           return sendJson(res, 404, { error: "Profile not found" });
         }
@@ -100,52 +100,54 @@ export function createWebServer({ port, databaseService, nutritionService }) {
       }
 
       if (req.method === "GET" && pathname === "/api/history") {
-        const telegramUserId = getTelegramUserId(url);
+        const identifier = getUserIdentifier(url);
         const limit = clampLimit(url.searchParams.get("limit"), 20);
-        if (!telegramUserId) {
-          return sendJson(res, 400, { error: "telegram_user_id is required" });
+        if (!identifier) {
+          return sendJson(res, 400, { error: "telegram_user_id or identifier is required" });
         }
 
-        return sendJson(res, 200, databaseService.getRecentMeals(telegramUserId, limit) || { meals: [] });
+        return sendJson(res, 200, databaseService.getRecentMeals(identifier, limit) || { meals: [] });
       }
 
       if (req.method === "GET" && pathname === "/api/weights") {
-        const telegramUserId = getTelegramUserId(url);
+        const identifier = getUserIdentifier(url);
         const limit = clampLimit(url.searchParams.get("limit"), 20);
-        if (!telegramUserId) {
-          return sendJson(res, 400, { error: "telegram_user_id is required" });
+        if (!identifier) {
+          return sendJson(res, 400, { error: "telegram_user_id or identifier is required" });
         }
 
-        return sendJson(res, 200, databaseService.getWeightLogs(telegramUserId, limit) || { logs: [] });
+        return sendJson(res, 200, databaseService.getWeightLogs(identifier, limit) || { logs: [] });
       }
 
       if (req.method === "GET" && pathname === "/api/measurements") {
-        const telegramUserId = getTelegramUserId(url);
+        const identifier = getUserIdentifier(url);
         const limit = clampLimit(url.searchParams.get("limit"), 20);
-        if (!telegramUserId) {
-          return sendJson(res, 400, { error: "telegram_user_id is required" });
+        if (!identifier) {
+          return sendJson(res, 400, { error: "telegram_user_id or identifier is required" });
         }
 
-        return sendJson(res, 200, databaseService.getMeasurementLogs(telegramUserId, limit) || { logs: [] });
+        return sendJson(res, 200, databaseService.getMeasurementLogs(identifier, limit) || { logs: [] });
       }
 
       if (req.method === "POST" && pathname === "/api/weight") {
         const body = await readJsonBody(req);
-        if (!body.telegram_user_id || body.weight === undefined || body.weight === null || body.weight === "") {
-          return sendJson(res, 400, { error: "telegram_user_id and weight are required" });
+        const identifier = body.telegram_user_id || body.identifier;
+        if (!identifier || body.weight === undefined || body.weight === null || body.weight === "") {
+          return sendJson(res, 400, { error: "telegram_user_id or identifier and weight are required" });
         }
 
-        const savedLog = databaseService.saveWeightLog(body.telegram_user_id, Number(body.weight), body.note || null);
+        const savedLog = databaseService.saveWeightLog(identifier, Number(body.weight), body.note || null);
         return sendJson(res, 200, { log: savedLog });
       }
 
       if (req.method === "POST" && pathname === "/api/measurements") {
         const body = await readJsonBody(req);
-        if (!body.telegram_user_id) {
-          return sendJson(res, 400, { error: "telegram_user_id is required" });
+        const identifier = body.telegram_user_id || body.identifier;
+        if (!identifier) {
+          return sendJson(res, 400, { error: "telegram_user_id or identifier is required" });
         }
 
-        const savedLog = databaseService.saveMeasurementLog(body.telegram_user_id, {
+        const savedLog = databaseService.saveMeasurementLog(identifier, {
           waist: body.waist,
           thigh: body.thigh,
           arm: body.arm,
@@ -157,22 +159,24 @@ export function createWebServer({ port, databaseService, nutritionService }) {
 
       if (req.method === "POST" && pathname === "/api/ask") {
         const body = await readJsonBody(req);
-        if (!body.telegram_user_id || !body.question) {
-          return sendJson(res, 400, { error: "telegram_user_id and question are required" });
+        const identifier = body.telegram_user_id || body.identifier;
+        if (!identifier || !body.question) {
+          return sendJson(res, 400, { error: "telegram_user_id or identifier and question are required" });
         }
 
-        const profile = databaseService.getUserByTelegramId(body.telegram_user_id);
+        const profile = databaseService.getUserByIdentifier(identifier);
         const answer = await nutritionService.answerNutritionQuestion(body.question, profile);
         return sendJson(res, 200, { answer });
       }
 
       if (req.method === "POST" && pathname === "/api/meal-plan") {
         const body = await readJsonBody(req);
-        if (!body.telegram_user_id) {
-          return sendJson(res, 400, { error: "telegram_user_id is required" });
+        const identifier = body.telegram_user_id || body.identifier;
+        if (!identifier) {
+          return sendJson(res, 400, { error: "telegram_user_id or identifier is required" });
         }
 
-        const profile = databaseService.getUserByTelegramId(body.telegram_user_id);
+        const profile = databaseService.getUserByIdentifier(identifier);
         const plan = await nutritionService.generateMealPlan(profile, body.period || "день");
         return sendJson(res, 200, { plan });
       }
