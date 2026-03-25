@@ -1,5 +1,4 @@
 const state = {
-  identifier: "",
   profile: null
 };
 
@@ -7,7 +6,11 @@ const elements = {
   telegramUserId: document.querySelector("#telegramUserId"),
   loadDashboard: document.querySelector("#loadDashboard"),
   logoutButton: document.querySelector("#logoutButton"),
+  seedDemoButton: document.querySelector("#seedDemoButton"),
   dashboard: document.querySelector("#dashboard"),
+  summaryGrid: document.querySelector("#summaryGrid"),
+  profileHeadline: document.querySelector("#profileHeadline"),
+  profileSubline: document.querySelector("#profileSubline"),
   profileBlock: document.querySelector("#profileBlock"),
   todayBlock: document.querySelector("#todayBlock"),
   progressBlock: document.querySelector("#progressBlock"),
@@ -16,6 +19,8 @@ const elements = {
   measurementBlock: document.querySelector("#measurementBlock"),
   answerBlock: document.querySelector("#answerBlock"),
   mealPlanBlock: document.querySelector("#mealPlanBlock"),
+  weightChart: document.querySelector("#weightChart"),
+  measurementChart: document.querySelector("#measurementChart"),
   weightForm: document.querySelector("#weightForm"),
   measurementForm: document.querySelector("#measurementForm"),
   askForm: document.querySelector("#askForm"),
@@ -34,6 +39,15 @@ function formatDate(dateString) {
   return new Intl.DateTimeFormat("ru-RU", {
     day: "2-digit",
     month: "2-digit",
+    year: "2-digit"
+  }).format(new Date(dateString));
+}
+
+function formatDateLong(dateString) {
+  if (!dateString) return "без даты";
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
     year: "numeric"
   }).format(new Date(dateString));
 }
@@ -43,7 +57,6 @@ function formatDateTime(dateString) {
   return new Intl.DateTimeFormat("ru-RU", {
     day: "2-digit",
     month: "2-digit",
-    year: "numeric",
     hour: "2-digit",
     minute: "2-digit"
   }).format(new Date(dateString));
@@ -53,10 +66,6 @@ function formatNumber(value, digits = 1) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return "0";
   return numeric.toFixed(digits);
-}
-
-function formatKgLine(log) {
-  return `${formatDate(log.created_at)} — ${formatNumber(log.weight)} кг`;
 }
 
 function createMetric(label, value) {
@@ -73,13 +82,23 @@ function createListItem(title, subtitle = "") {
   return item;
 }
 
+function createSummaryCard(label, value, caption = "") {
+  const card = document.createElement("article");
+  card.className = "summary-card";
+  card.innerHTML = `
+    <span class="summary-label">${label}</span>
+    <div class="summary-value">${value}</div>
+    <div class="summary-caption">${caption}</div>
+  `;
+  return card;
+}
+
 function fillBlock(block, items) {
   block.innerHTML = "";
   if (!items.length) {
     block.append(createListItem("Пока пусто"));
     return;
   }
-
   items.forEach((item) => block.append(item));
 }
 
@@ -107,6 +126,181 @@ function setStatus(text, tone = "muted") {
 
 function setAuthenticatedUI(isAuthenticated) {
   elements.logoutButton.classList.toggle("hidden", !isAuthenticated);
+  elements.seedDemoButton.classList.toggle("hidden", !isAuthenticated);
+}
+
+function buildPath(points, width, height, min, max, accessor) {
+  if (points.length === 0) return "";
+  if (points.length === 1) {
+    const y = height / 2;
+    return `M 0 ${y} L ${width} ${y}`;
+  }
+
+  return points
+    .map((point, index) => {
+      const x = (index / (points.length - 1)) * width;
+      const raw = accessor(point);
+      const normalized = max === min ? 0.5 : (raw - min) / (max - min);
+      const y = height - normalized * height;
+      return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(" ");
+}
+
+function renderEmptyChart(container, message) {
+  container.innerHTML = `<div class="chart-empty">${message}</div>`;
+}
+
+function renderLineChart(container, logs, options) {
+  if (!logs?.length) {
+    renderEmptyChart(container, options.emptyMessage);
+    return;
+  }
+
+  const points = [...logs].reverse();
+  const values = points.map(options.accessor).filter((value) => Number.isFinite(value));
+  if (!values.length) {
+    renderEmptyChart(container, options.emptyMessage);
+    return;
+  }
+
+  const width = 720;
+  const height = 220;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const path = buildPath(points, width, height, min, max, options.accessor);
+  const grid = [0, 0.25, 0.5, 0.75, 1]
+    .map((ratio) => {
+      const y = (height * ratio).toFixed(2);
+      return `<line x1="0" y1="${y}" x2="${width}" y2="${y}" stroke="rgba(21,33,43,0.08)" stroke-width="1" />`;
+    })
+    .join("");
+
+  const circles = points
+    .map((point, index) => {
+      const x = points.length === 1 ? width / 2 : (index / (points.length - 1)) * width;
+      const raw = options.accessor(point);
+      const normalized = max === min ? 0.5 : (raw - min) / (max - min);
+      const y = height - normalized * height;
+      return `<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="4.5" fill="${options.color}" />`;
+    })
+    .join("");
+
+  container.innerHTML = `
+    <div class="chart-meta">
+      <span>Диапазон: ${formatNumber(min, options.precision || 1)} - ${formatNumber(max, options.precision || 1)} ${options.suffix}</span>
+      <span>Последнее: ${formatNumber(options.accessor(points[points.length - 1]), options.precision || 1)} ${options.suffix}</span>
+    </div>
+    <svg class="chart-svg" viewBox="0 0 ${width} ${height + 34}" role="img" aria-label="${options.title}">
+      ${grid}
+      <path d="${path}" fill="none" stroke="${options.color}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+      ${circles}
+      ${points
+        .map((point, index) => {
+          const x = points.length === 1 ? width / 2 : (index / (points.length - 1)) * width;
+          return `<text x="${x.toFixed(2)}" y="${height + 24}" text-anchor="middle" font-size="12" fill="#64707b">${formatDate(point.created_at)}</text>`;
+        })
+        .join("")}
+    </svg>
+  `;
+}
+
+function renderMultiLineChart(container, logs) {
+  if (!logs?.length) {
+    renderEmptyChart(container, "Добавь замеры или подгрузи демо-данные, чтобы увидеть график.");
+    return;
+  }
+
+  const points = [...logs]
+    .reverse()
+    .map((log) => ({
+      ...log,
+      waist: Number(log.waist),
+      thigh: Number(log.thigh),
+      arm: Number(log.arm)
+    }))
+    .filter((log) => [log.waist, log.thigh, log.arm].some((value) => Number.isFinite(value)));
+
+  if (!points.length) {
+    renderEmptyChart(container, "Замеров пока недостаточно для графика.");
+    return;
+  }
+
+  const width = 720;
+  const height = 220;
+  const allValues = points.flatMap((point) => [point.waist, point.thigh, point.arm]).filter((value) => Number.isFinite(value));
+  const min = Math.min(...allValues);
+  const max = Math.max(...allValues);
+  const series = [
+    { key: "waist", color: "#0f8a6b" },
+    { key: "thigh", color: "#d8a44a" },
+    { key: "arm", color: "#1d3244" }
+  ];
+
+  const grid = [0, 0.25, 0.5, 0.75, 1]
+    .map((ratio) => {
+      const y = (height * ratio).toFixed(2);
+      return `<line x1="0" y1="${y}" x2="${width}" y2="${y}" stroke="rgba(21,33,43,0.08)" stroke-width="1" />`;
+    })
+    .join("");
+
+  const paths = series
+    .map((seriesItem) => {
+      const hasAny = points.some((point) => Number.isFinite(point[seriesItem.key]));
+      if (!hasAny) return "";
+      const path = buildPath(points, width, height, min, max, (point) => {
+        const value = Number(point[seriesItem.key]);
+        return Number.isFinite(value) ? value : min;
+      });
+      return `<path d="${path}" fill="none" stroke="${seriesItem.color}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></path>`;
+    })
+    .join("");
+
+  container.innerHTML = `
+    <div class="chart-meta">
+      <span>Диапазон: ${formatNumber(min)} - ${formatNumber(max)} см</span>
+      <span>${points.length} точек</span>
+    </div>
+    <svg class="chart-svg" viewBox="0 0 ${width} ${height + 34}" role="img" aria-label="График замеров">
+      ${grid}
+      ${paths}
+      ${points
+        .map((point, index) => {
+          const x = points.length === 1 ? width / 2 : (index / (points.length - 1)) * width;
+          return `<text x="${x.toFixed(2)}" y="${height + 24}" text-anchor="middle" font-size="12" fill="#64707b">${formatDate(point.created_at)}</text>`;
+        })
+        .join("")}
+    </svg>
+  `;
+}
+
+function renderSummary(dashboard) {
+  const profile = dashboard.profile;
+  const todayMeals = dashboard.today?.meals || [];
+  const todayTotals = dashboard.today?.totals || {};
+  const latestWeight = dashboard.weightLogs?.logs?.[0];
+  const latestMeasurement = dashboard.measurementLogs?.logs?.[0];
+
+  elements.profileHeadline.textContent = profile.display_name || "Твой кабинет";
+  elements.profileSubline.textContent = profile.telegram_username
+    ? `@${profile.telegram_username} · цель: ${profile.goal || "не указана"}`
+    : `цель: ${profile.goal || "не указана"}`;
+
+  elements.summaryGrid.innerHTML = "";
+  [
+    createSummaryCard("Сегодня", `${Math.round(Number(todayTotals.calories || 0))} ккал`, `${todayMeals.length} приемов пищи`),
+    createSummaryCard("Текущий вес", latestWeight ? `${formatNumber(latestWeight.weight)} кг` : "—", latestWeight ? formatDateLong(latestWeight.created_at) : "нет записей"),
+    createSummaryCard(
+      "Динамика",
+      dashboard.weightProgress?.change !== undefined ? `${formatNumber(dashboard.weightProgress.change)} кг` : "—",
+      dashboard.weightProgress?.change > 0 ? "рост" : dashboard.weightProgress?.change < 0 ? "снижение" : "без изменений"
+    ),
+    createSummaryCard(
+      "Последние замеры",
+      latestMeasurement ? `${latestMeasurement.waist ?? "-"} / ${latestMeasurement.thigh ?? "-"} / ${latestMeasurement.arm ?? "-"}` : "—",
+      latestMeasurement ? "талия / нога / рука" : "нет записей"
+    )
+  ].forEach((card) => elements.summaryGrid.append(card));
 }
 
 function renderProfile(profile) {
@@ -115,7 +309,8 @@ function renderProfile(profile) {
     createMetric("Telegram", profile.telegram_username ? `@${profile.telegram_username}` : profile.telegram_user_id),
     createMetric("Цель", profile.goal || "Не указана"),
     createMetric("Калории", `${profile.daily_calories || 0} ккал`),
-    createMetric("Белки / жиры / углеводы", `${profile.daily_protein || 0} / ${profile.daily_fat || 0} / ${profile.daily_carbs || 0} г`)
+    createMetric("Белки", `${profile.daily_protein || 0} г`),
+    createMetric("Жиры / углеводы", `${profile.daily_fat || 0} / ${profile.daily_carbs || 0} г`)
   ]);
 }
 
@@ -128,11 +323,11 @@ function renderToday(today) {
   ];
 
   if (meals.length) {
-    meals.slice(0, 5).forEach((meal) => {
+    meals.slice(0, 6).forEach((meal) => {
       items.push(
         createListItem(
-          `${meal.meal_type || "Прием пищи"}: ${meal.dish_name}`,
-          `${Math.round(Number(meal.calories || 0))} ккал, ${formatDateTime(meal.created_at)}`
+          `${meal.meal_type || "Прием пищи"} · ${meal.dish_name}`,
+          `${Math.round(Number(meal.calories || 0))} ккал · ${formatDateTime(meal.created_at)}`
         )
       );
     });
@@ -147,38 +342,18 @@ function renderProgress(weightProgress, measurementProgress) {
   const items = [];
 
   if (weightProgress?.latest && weightProgress?.oldest) {
-    items.push(
-      createMetric(
-        "Вес",
-        `${formatNumber(weightProgress.oldest.weight)} кг -> ${formatNumber(weightProgress.latest.weight)} кг`
-      )
-    );
+    items.push(createMetric("Вес", `${formatNumber(weightProgress.oldest.weight)} → ${formatNumber(weightProgress.latest.weight)} кг`));
     items.push(createMetric("Изменение веса", `${formatNumber(weightProgress.change)} кг`));
   } else {
-    items.push(createListItem("Вес пока не добавлен"));
+    items.push(createMetric("Вес", "Недостаточно данных"));
   }
 
   if (measurementProgress?.latest && measurementProgress?.oldest) {
-    items.push(
-      createMetric(
-        "Талия",
-        measurementProgress.waistChange === null ? "нет данных" : `${formatNumber(measurementProgress.waistChange)} см`
-      )
-    );
-    items.push(
-      createMetric(
-        "Нога",
-        measurementProgress.thighChange === null ? "нет данных" : `${formatNumber(measurementProgress.thighChange)} см`
-      )
-    );
-    items.push(
-      createMetric(
-        "Рука",
-        measurementProgress.armChange === null ? "нет данных" : `${formatNumber(measurementProgress.armChange)} см`
-      )
-    );
+    items.push(createMetric("Талия", measurementProgress.waistChange === null ? "нет данных" : `${formatNumber(measurementProgress.waistChange)} см`));
+    items.push(createMetric("Нога", measurementProgress.thighChange === null ? "нет данных" : `${formatNumber(measurementProgress.thighChange)} см`));
+    items.push(createMetric("Рука", measurementProgress.armChange === null ? "нет данных" : `${formatNumber(measurementProgress.armChange)} см`));
   } else {
-    items.push(createListItem("Замеры пока не добавлены"));
+    items.push(createMetric("Замеры", "Пока нет динамики"));
   }
 
   fillBlock(elements.progressBlock, items);
@@ -190,7 +365,7 @@ function renderHistory(meals) {
     meals.length
       ? meals.map((meal) =>
           createListItem(
-            `${formatDate(meal.created_at)} — ${meal.dish_name}`,
+            `${formatDateLong(meal.created_at)} — ${meal.dish_name}`,
             `${meal.meal_type || "Прием пищи"} · ${Math.round(Number(meal.calories || 0))} ккал · БЖУ ${formatNumber(meal.protein)} / ${formatNumber(meal.fat)} / ${formatNumber(meal.carbs)}`
           )
         )
@@ -201,7 +376,9 @@ function renderHistory(meals) {
 function renderWeightLogs(logs) {
   fillBlock(
     elements.weightBlock,
-    logs.length ? logs.map((log) => createListItem(formatKgLine(log))) : [createListItem("Журнал веса пока пуст")]
+    logs.length
+      ? logs.slice(0, 12).map((log) => createListItem(`${formatDateLong(log.created_at)} — ${formatNumber(log.weight)} кг`))
+      : [createListItem("Журнал веса пока пуст")]
   );
 }
 
@@ -209,9 +386,9 @@ function renderMeasurementLogs(logs) {
   fillBlock(
     elements.measurementBlock,
     logs.length
-      ? logs.map((log) =>
+      ? logs.slice(0, 12).map((log) =>
           createListItem(
-            `${formatDate(log.created_at)} — талия ${log.waist ?? "-"} · нога ${log.thigh ?? "-"} · рука ${log.arm ?? "-"}`,
+            `${formatDateLong(log.created_at)} — талия ${log.waist ?? "-"} · нога ${log.thigh ?? "-"} · рука ${log.arm ?? "-"}`,
             log.note || ""
           )
         )
@@ -221,15 +398,24 @@ function renderMeasurementLogs(logs) {
 
 function renderDashboard(dashboard) {
   state.profile = dashboard.profile;
-  state.identifier = dashboard.profile.telegram_user_id;
   elements.dashboard.classList.remove("hidden");
   setAuthenticatedUI(true);
+  renderSummary(dashboard);
   renderProfile(dashboard.profile);
   renderToday(dashboard.today);
   renderProgress(dashboard.weightProgress, dashboard.measurementProgress);
   renderHistory(dashboard.recentMeals?.meals || []);
   renderWeightLogs(dashboard.weightLogs?.logs || []);
   renderMeasurementLogs(dashboard.measurementLogs?.logs || []);
+  renderLineChart(elements.weightChart, dashboard.weightLogs?.logs || [], {
+    title: "График веса",
+    accessor: (point) => Number(point.weight),
+    color: "#0f8a6b",
+    suffix: "кг",
+    precision: 1,
+    emptyMessage: "Добавь несколько записей веса или подгрузи демо-данные, чтобы увидеть график."
+  });
+  renderMultiLineChart(elements.measurementChart, dashboard.measurementLogs?.logs || []);
 }
 
 async function loadDashboardBySession() {
@@ -263,9 +449,7 @@ async function submitWeight(event) {
   try {
     await request("/api/weight", {
       method: "POST",
-      body: JSON.stringify({
-        weight
-      })
+      body: JSON.stringify({ weight })
     });
     elements.weightForm.reset();
     await loadDashboardBySession();
@@ -306,9 +490,7 @@ async function submitQuestion(event) {
   try {
     const result = await request("/api/ask", {
       method: "POST",
-      body: JSON.stringify({
-        question
-      })
+      body: JSON.stringify({ question })
     });
     fillBlock(elements.answerBlock, [createListItem("Ответ нутрициолога", result.answer)]);
     setStatus("Ответ готов.", "success");
@@ -321,12 +503,27 @@ async function loadMealPlan() {
   try {
     const result = await request("/api/meal-plan", {
       method: "POST",
-      body: JSON.stringify({
-        period: "день"
-      })
+      body: JSON.stringify({ period: "день" })
     });
     fillBlock(elements.mealPlanBlock, [createListItem("Меню на день", result.plan)]);
     setStatus("Меню на день готово.", "success");
+  } catch (error) {
+    setStatus(error.message, "error");
+  }
+}
+
+async function seedDemoData() {
+  try {
+    setStatus("Добавляю демо-историю для графиков...", "muted");
+    const result = await request("/api/demo/seed", {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    await loadDashboardBySession();
+    setStatus(
+      `Готово: вес ${result.seededWeights}, замеры ${result.seededMeasurements}, питание ${result.seededMeals}.`,
+      "success"
+    );
   } catch (error) {
     setStatus(error.message, "error");
   }
@@ -337,7 +534,6 @@ async function logout() {
     method: "POST",
     body: JSON.stringify({})
   });
-  state.identifier = "";
   state.profile = null;
   elements.dashboard.classList.add("hidden");
   setAuthenticatedUI(false);
@@ -368,29 +564,6 @@ async function bootstrapTelegramLogin() {
   }
 }
 
-function getTelegramAuthFromUrl() {
-  const url = new URL(window.location.href);
-  const keys = ["id", "first_name", "last_name", "username", "photo_url", "auth_date", "hash"];
-  const payload = {};
-
-  for (const key of keys) {
-    const value = url.searchParams.get(key);
-    if (value) {
-      payload[key] = value;
-    }
-  }
-
-  return payload.id && payload.hash ? payload : null;
-}
-
-function clearTelegramAuthFromUrl() {
-  const url = new URL(window.location.href);
-  ["id", "first_name", "last_name", "username", "photo_url", "auth_date", "hash"].forEach((key) => {
-    url.searchParams.delete(key);
-  });
-  window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
-}
-
 function consumeAuthResultFlags() {
   const url = new URL(window.location.href);
   const authSuccess = url.searchParams.get("auth_success");
@@ -408,28 +581,6 @@ function consumeAuthResultFlags() {
   };
 }
 
-async function restoreTelegramAuthFromUrl() {
-  const payload = getTelegramAuthFromUrl();
-  if (!payload) {
-    return false;
-  }
-
-  try {
-    setStatus("Подтверждаю вход через Telegram...", "muted");
-    await request("/api/auth/telegram", {
-      method: "POST",
-      body: JSON.stringify(payload)
-    });
-    clearTelegramAuthFromUrl();
-    await loadDashboardBySession();
-    return true;
-  } catch (error) {
-    clearTelegramAuthFromUrl();
-    setStatus(error.message, "error");
-    return false;
-  }
-}
-
 async function restoreSession() {
   try {
     await request("/api/me");
@@ -445,6 +596,9 @@ elements.loadDashboard.addEventListener("click", () => {
 elements.logoutButton.addEventListener("click", () => {
   logout().catch((error) => setStatus(error.message, "error"));
 });
+elements.seedDemoButton.addEventListener("click", () => {
+  seedDemoData().catch((error) => setStatus(error.message, "error"));
+});
 elements.weightForm.addEventListener("submit", submitWeight);
 elements.measurementForm.addEventListener("submit", submitMeasurements);
 elements.askForm.addEventListener("submit", submitQuestion);
@@ -457,17 +611,11 @@ elements.telegramUserId.addEventListener("keydown", (event) => {
 });
 
 bootstrapTelegramLogin();
-restoreTelegramAuthFromUrl().then((handled) => {
-  if (!handled) {
-    const authFlags = consumeAuthResultFlags();
-    if (authFlags.authError) {
-      setStatus("Не удалось подтвердить вход через Telegram.", "error");
-    }
-
-    restoreSession().then(() => {
-      if (authFlags.authSuccess) {
-        setStatus("Вход через Telegram выполнен.", "success");
-      }
-    });
+const authFlags = consumeAuthResultFlags();
+restoreSession().then(() => {
+  if (authFlags.authError) {
+    setStatus("Не удалось подтвердить вход через Telegram.", "error");
+  } else if (authFlags.authSuccess) {
+    setStatus("Вход через Telegram выполнен.", "success");
   }
 });

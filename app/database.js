@@ -28,6 +28,17 @@ function addDaysIso(days, from = new Date()) {
   return date.toISOString();
 }
 
+function toSqliteDateTime(dateInput) {
+  const date = new Date(dateInput);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const seconds = String(date.getSeconds()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
 export async function createDatabaseService({ databasePath }) {
   const SQL = await initSqlJs({
     locateFile: (file) => path.join(__dirname, "..", "node_modules", "sql.js", "dist", file)
@@ -616,11 +627,143 @@ export async function createDatabaseService({ databasePath }) {
       return {
         profile,
         today: this.getTodaySummary(telegramUserId),
-        recentMeals: this.getRecentMeals(telegramUserId, 10),
-        weightLogs: this.getWeightLogs(telegramUserId, 10),
-        measurementLogs: this.getMeasurementLogs(telegramUserId, 10),
+        recentMeals: this.getRecentMeals(telegramUserId, 20),
+        weightLogs: this.getWeightLogs(telegramUserId, 30),
+        measurementLogs: this.getMeasurementLogs(telegramUserId, 30),
         weightProgress: this.getWeightProgress(telegramUserId),
         measurementProgress: this.getMeasurementProgress(telegramUserId)
+      };
+    },
+
+    seedDemoData(telegramUserId) {
+      const user = getUserByIdentifier(telegramUserId);
+      if (!user) return null;
+
+      const existingWeights = getMany(
+        "SELECT * FROM weight_logs WHERE user_id = ? ORDER BY datetime(created_at) DESC LIMIT 30",
+        [user.id]
+      );
+      const existingMeasurements = getMany(
+        "SELECT * FROM measurement_logs WHERE user_id = ? ORDER BY datetime(created_at) DESC LIMIT 30",
+        [user.id]
+      );
+      const existingMeals = getMany(
+        "SELECT * FROM meal_entries WHERE user_id = ? ORDER BY datetime(created_at) DESC LIMIT 30",
+        [user.id]
+      );
+
+      let seededWeights = 0;
+      let seededMeasurements = 0;
+      let seededMeals = 0;
+
+      const now = new Date();
+      const latestWeight = existingWeights[0] ? Number(existingWeights[0].weight) : null;
+      const currentWeight = Number.isFinite(latestWeight) ? latestWeight : 76.4;
+
+      if (existingWeights.length < 8) {
+        const targetCount = 8 - existingWeights.length;
+        for (let index = targetCount; index >= 1; index -= 1) {
+          const daysAgo = index * 4;
+          const createdAt = toSqliteDateTime(new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000));
+          const weight = Number((currentWeight - index * 0.35).toFixed(1));
+          db.run("INSERT INTO weight_logs (user_id, weight, note, created_at) VALUES (?, ?, ?, ?)", [
+            user.id,
+            weight,
+            "demo history",
+            createdAt
+          ]);
+          seededWeights += 1;
+        }
+      }
+
+      const latestMeasurement = existingMeasurements[0] || {};
+      const baseWaist = Number.isFinite(Number(latestMeasurement.waist)) ? Number(latestMeasurement.waist) : 84;
+      const baseThigh = Number.isFinite(Number(latestMeasurement.thigh)) ? Number(latestMeasurement.thigh) : 56;
+      const baseArm = Number.isFinite(Number(latestMeasurement.arm)) ? Number(latestMeasurement.arm) : 32;
+
+      if (existingMeasurements.length < 6) {
+        const targetCount = 6 - existingMeasurements.length;
+        for (let index = targetCount; index >= 1; index -= 1) {
+          const daysAgo = index * 6;
+          const createdAt = toSqliteDateTime(new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000));
+          db.run(
+            "INSERT INTO measurement_logs (user_id, waist, thigh, arm, note, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            [
+              user.id,
+              Number((baseWaist - index * 0.4).toFixed(1)),
+              Number((baseThigh - index * 0.15).toFixed(1)),
+              Number((baseArm - index * 0.05).toFixed(1)),
+              "demo history",
+              createdAt
+            ]
+          );
+          seededMeasurements += 1;
+        }
+      }
+
+      if (existingMeals.length < 10) {
+        const mealTemplates = [
+          { dish: "Овсянка с бананом и орехами", type: "завтрак", calories: 430, protein: 16, fat: 14, carbs: 58 },
+          { dish: "Творог с ягодами", type: "перекус", calories: 210, protein: 23, fat: 6, carbs: 14 },
+          { dish: "Курица с рисом и овощами", type: "обед", calories: 620, protein: 46, fat: 18, carbs: 63 },
+          { dish: "Йогурт и яблоко", type: "перекус", calories: 180, protein: 9, fat: 5, carbs: 24 },
+          { dish: "Лосось с картофелем", type: "ужин", calories: 560, protein: 38, fat: 22, carbs: 41 },
+          { dish: "Омлет и тосты", type: "завтрак", calories: 390, protein: 24, fat: 20, carbs: 28 }
+        ];
+
+        const targetCount = Math.min(6, 10 - existingMeals.length);
+        for (let index = targetCount; index >= 1; index -= 1) {
+          const template = mealTemplates[(targetCount - index) % mealTemplates.length];
+          const hoursAgo = index * 10;
+          const createdAt = toSqliteDateTime(new Date(now.getTime() - hoursAgo * 60 * 60 * 1000));
+          db.run(
+            `
+              INSERT INTO meal_entries (
+                user_id,
+                telegram_message_id,
+                image_file_id,
+                dish_name,
+                meal_type,
+                estimated_weight_grams,
+                calories,
+                protein,
+                fat,
+                carbs,
+                confidence,
+                ingredients_json,
+                assumptions_json,
+                advice,
+                created_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `,
+            [
+              user.id,
+              null,
+              null,
+              template.dish,
+              template.type,
+              260,
+              template.calories,
+              template.protein,
+              template.fat,
+              template.carbs,
+              "high",
+              JSON.stringify([]),
+              JSON.stringify(["demo history"]),
+              "Демо-запись для графиков и теста кабинета.",
+              createdAt
+            ]
+          );
+          seededMeals += 1;
+        }
+      }
+
+      persist();
+
+      return {
+        seededWeights,
+        seededMeasurements,
+        seededMeals
       };
     },
 

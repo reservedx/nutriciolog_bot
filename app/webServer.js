@@ -421,6 +421,20 @@ export function createWebServer({ port, databaseService, nutritionService, teleg
         return sendJson(res, 200, { plan });
       }
 
+      if (req.method === "POST" && pathname === "/api/demo/seed") {
+        const identifier = getSessionIdentifier(req, sessionSecret);
+        if (!identifier) {
+          return sendJson(res, 401, { error: "Unauthorized" });
+        }
+
+        const result = databaseService.seedDemoData(identifier);
+        if (!result) {
+          return sendJson(res, 404, { error: "Profile not found" });
+        }
+
+        return sendJson(res, 200, result);
+      }
+
       if (req.method === "GET" && (pathname === "/" || pathname === "/index.html")) {
         return sendFile(res, path.join(webDir, "index.html"));
       }
