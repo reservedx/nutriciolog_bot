@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Nutriciolog — веб-кабинет</title>
+    <title>Nutriciolog - веб-кабинет</title>
     <link rel="stylesheet" href="/web/styles.css" />
   </head>
   <body>
@@ -12,22 +12,33 @@
         <p class="eyebrow">Nutriciolog Platform</p>
         <h1>Личный кабинет питания и прогресса</h1>
         <p class="lead">
-          Сайт и Telegram-бот работают на одной базе данных. Здесь можно открыть профиль, посмотреть дневник,
-          историю веса, замеры и использовать те же данные, что и в боте.
+          Сайт и Telegram-бот работают на одной базе данных. Входи через Telegram и открывай тот же профиль,
+          дневник, прогресс, вес и замеры, которые уже есть в боте.
         </p>
       </section>
 
       <section class="login-card">
-        <label for="telegramUserId">Telegram ID или @username</label>
-        <div class="login-row">
-          <input id="telegramUserId" type="text" placeholder="Например: 742896049 или @reservedx" />
-          <button id="loadDashboard">Открыть кабинет</button>
+        <div class="login-header">
+          <div>
+            <label>Вход через Telegram</label>
+            <p class="hint">Без ручного ввода ID. Нажми на кнопку ниже и подтверди вход своим Telegram-аккаунтом.</p>
+          </div>
+          <button id="logoutButton" class="ghost hidden" type="button">Выйти</button>
         </div>
-        <p class="hint">
-          Пока это технический вход для MVP. Следующий шаг архитектуры — авторизация через Telegram Login и единый
-          аккаунт без ручного ввода ID.
-        </p>
-        <p id="statusLine" class="status">Введи свой Telegram ID, чтобы открыть общий кабинет.</p>
+
+        <div id="telegramLoginWidget" class="widget-shell">
+          <p class="status">Подготавливаю Telegram Login...</p>
+        </div>
+
+        <div class="fallback">
+          <label for="telegramUserId">Резервный вход по ID или @username</label>
+          <div class="login-row">
+            <input id="telegramUserId" type="text" placeholder="Например: 742896049 или @reservedx" />
+            <button id="loadDashboard" type="button">Открыть кабинет</button>
+          </div>
+        </div>
+
+        <p id="statusLine" class="status">Сайт попробует автоматически открыть кабинет, если ты уже вошел.</p>
       </section>
 
       <section id="dashboard" class="dashboard hidden">
@@ -91,7 +102,7 @@
 
           <article class="card wide">
             <h2>Меню на день</h2>
-            <button id="loadMealPlan">Сгенерировать меню</button>
+            <button id="loadMealPlan" type="button">Сгенерировать меню</button>
             <div id="mealPlanBlock" class="stack"></div>
           </article>
         </div>

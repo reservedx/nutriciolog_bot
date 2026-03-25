@@ -32,10 +32,12 @@ async function main() {
   const webServer = createWebServer({
     port: config.port,
     databaseService,
-    nutritionService
+    nutritionService,
+    telegramBotToken: config.telegramBotToken,
+    telegramBotUsername: process.env.TELEGRAM_BOT_USERNAME || null
   });
 
-  webServer.start();
+  await webServer.start();
   await bot.launch();
   console.log(`Bot is running in polling mode on port ${config.port}`);
 

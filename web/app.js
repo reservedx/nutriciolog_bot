@@ -1,10 +1,12 @@
 const state = {
-  telegramUserId: ""
+  identifier: "",
+  profile: null
 };
 
 const elements = {
   telegramUserId: document.querySelector("#telegramUserId"),
   loadDashboard: document.querySelector("#loadDashboard"),
+  logoutButton: document.querySelector("#logoutButton"),
   dashboard: document.querySelector("#dashboard"),
   profileBlock: document.querySelector("#profileBlock"),
   todayBlock: document.querySelector("#todayBlock"),
@@ -23,7 +25,8 @@ const elements = {
   thighValue: document.querySelector("#thighValue"),
   armValue: document.querySelector("#armValue"),
   questionValue: document.querySelector("#questionValue"),
-  statusLine: document.querySelector("#statusLine")
+  statusLine: document.querySelector("#statusLine"),
+  telegramLoginWidget: document.querySelector("#telegramLoginWidget")
 };
 
 function formatDate(dateString) {
@@ -82,6 +85,7 @@ function fillBlock(block, items) {
 
 async function request(pathname, options = {}) {
   const response = await fetch(pathname, {
+    credentials: "include",
     headers: {
       "Content-Type": "application/json"
     },
@@ -101,9 +105,14 @@ function setStatus(text, tone = "muted") {
   elements.statusLine.dataset.tone = tone;
 }
 
+function setAuthenticatedUI(isAuthenticated) {
+  elements.logoutButton.classList.toggle("hidden", !isAuthenticated);
+}
+
 function renderProfile(profile) {
   fillBlock(elements.profileBlock, [
     createMetric("Профиль", profile.display_name || "Не настроен"),
+    createMetric("Telegram", profile.telegram_username ? `@${profile.telegram_username}` : profile.telegram_user_id),
     createMetric("Цель", profile.goal || "Не указана"),
     createMetric("Калории", `${profile.daily_calories || 0} ккал`),
     createMetric("Белки / жиры / углеводы", `${profile.daily_protein || 0} / ${profile.daily_fat || 0} / ${profile.daily_carbs || 0} г`)
@@ -210,39 +219,41 @@ function renderMeasurementLogs(logs) {
   );
 }
 
-async function loadDashboard() {
-  const telegramUserId = elements.telegramUserId.value.trim();
-  if (!telegramUserId) {
-    setStatus("Введи Telegram ID, чтобы открыть кабинет.", "error");
+function renderDashboard(dashboard) {
+  state.profile = dashboard.profile;
+  state.identifier = dashboard.profile.telegram_user_id;
+  elements.dashboard.classList.remove("hidden");
+  setAuthenticatedUI(true);
+  renderProfile(dashboard.profile);
+  renderToday(dashboard.today);
+  renderProgress(dashboard.weightProgress, dashboard.measurementProgress);
+  renderHistory(dashboard.recentMeals?.meals || []);
+  renderWeightLogs(dashboard.weightLogs?.logs || []);
+  renderMeasurementLogs(dashboard.measurementLogs?.logs || []);
+}
+
+async function loadDashboardBySession() {
+  setStatus("Загружаю кабинет...", "muted");
+  const dashboard = await request("/api/dashboard");
+  renderDashboard(dashboard);
+  setStatus("Кабинет открыт.", "success");
+}
+
+async function loadDashboardByFallback() {
+  const identifier = elements.telegramUserId.value.trim();
+  if (!identifier) {
+    setStatus("Введи Telegram ID или @username, чтобы открыть кабинет.", "error");
     return;
   }
 
-  state.telegramUserId = telegramUserId;
   setStatus("Загружаю кабинет...", "muted");
-
-  try {
-    const dashboard = await request(`/api/dashboard?telegram_user_id=${encodeURIComponent(telegramUserId)}`);
-    elements.dashboard.classList.remove("hidden");
-    renderProfile(dashboard.profile);
-    renderToday(dashboard.today);
-    renderProgress(dashboard.weightProgress, dashboard.measurementProgress);
-    renderHistory(dashboard.recentMeals?.meals || []);
-    renderWeightLogs(dashboard.weightLogs?.logs || []);
-    renderMeasurementLogs(dashboard.measurementLogs?.logs || []);
-    setStatus("Кабинет обновлен.", "success");
-  } catch (error) {
-    elements.dashboard.classList.add("hidden");
-    setStatus(error.message, "error");
-  }
+  const dashboard = await request(`/api/dashboard?identifier=${encodeURIComponent(identifier)}`);
+  renderDashboard(dashboard);
+  setStatus("Кабинет открыт.", "success");
 }
 
 async function submitWeight(event) {
   event.preventDefault();
-  if (!state.telegramUserId) {
-    setStatus("Сначала открой кабинет по Telegram ID.", "error");
-    return;
-  }
-
   const weight = elements.weightValue.value.trim();
   if (!weight) {
     setStatus("Введи вес, чтобы сохранить запись.", "error");
@@ -253,12 +264,11 @@ async function submitWeight(event) {
     await request("/api/weight", {
       method: "POST",
       body: JSON.stringify({
-        telegram_user_id: state.telegramUserId,
         weight
       })
     });
     elements.weightForm.reset();
-    await loadDashboard();
+    await loadDashboardBySession();
     setStatus("Вес сохранен.", "success");
   } catch (error) {
     setStatus(error.message, "error");
@@ -267,23 +277,18 @@ async function submitWeight(event) {
 
 async function submitMeasurements(event) {
   event.preventDefault();
-  if (!state.telegramUserId) {
-    setStatus("Сначала открой кабинет по Telegram ID.", "error");
-    return;
-  }
 
   try {
     await request("/api/measurements", {
       method: "POST",
       body: JSON.stringify({
-        telegram_user_id: state.telegramUserId,
         waist: elements.waistValue.value || null,
         thigh: elements.thighValue.value || null,
         arm: elements.armValue.value || null
       })
     });
     elements.measurementForm.reset();
-    await loadDashboard();
+    await loadDashboardBySession();
     setStatus("Замеры сохранены.", "success");
   } catch (error) {
     setStatus(error.message, "error");
@@ -292,11 +297,6 @@ async function submitMeasurements(event) {
 
 async function submitQuestion(event) {
   event.preventDefault();
-  if (!state.telegramUserId) {
-    setStatus("Сначала открой кабинет по Telegram ID.", "error");
-    return;
-  }
-
   const question = elements.questionValue.value.trim();
   if (!question) {
     setStatus("Напиши вопрос, чтобы получить ответ.", "error");
@@ -307,7 +307,6 @@ async function submitQuestion(event) {
     const result = await request("/api/ask", {
       method: "POST",
       body: JSON.stringify({
-        telegram_user_id: state.telegramUserId,
         question
       })
     });
@@ -319,16 +318,10 @@ async function submitQuestion(event) {
 }
 
 async function loadMealPlan() {
-  if (!state.telegramUserId) {
-    setStatus("Сначала открой кабинет по Telegram ID.", "error");
-    return;
-  }
-
   try {
     const result = await request("/api/meal-plan", {
       method: "POST",
       body: JSON.stringify({
-        telegram_user_id: state.telegramUserId,
         period: "день"
       })
     });
@@ -339,7 +332,70 @@ async function loadMealPlan() {
   }
 }
 
-elements.loadDashboard.addEventListener("click", loadDashboard);
+async function logout() {
+  await request("/api/logout", {
+    method: "POST",
+    body: JSON.stringify({})
+  });
+  state.identifier = "";
+  state.profile = null;
+  elements.dashboard.classList.add("hidden");
+  setAuthenticatedUI(false);
+  setStatus("Ты вышел из кабинета.", "success");
+}
+
+async function bootstrapTelegramLogin() {
+  try {
+    const config = await request("/api/web-config");
+    if (!config.botUsername) {
+      throw new Error("Не удалось определить username бота для Telegram Login.");
+    }
+
+    window.handleTelegramAuth = async (user) => {
+      try {
+        setStatus("Подтверждаю вход через Telegram...", "muted");
+        await request("/api/auth/telegram", {
+          method: "POST",
+          body: JSON.stringify(user)
+        });
+        await loadDashboardBySession();
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+    };
+
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = "https://telegram.org/js/telegram-widget.js?22";
+    script.setAttribute("data-telegram-login", config.botUsername);
+    script.setAttribute("data-size", "large");
+    script.setAttribute("data-userpic", "false");
+    script.setAttribute("data-request-access", "write");
+    script.setAttribute("data-onauth", "handleTelegramAuth(user)");
+
+    elements.telegramLoginWidget.innerHTML = "";
+    elements.telegramLoginWidget.append(script);
+    setStatus("Вход через Telegram готов.", "muted");
+  } catch (error) {
+    setStatus(error.message, "error");
+  }
+}
+
+async function restoreSession() {
+  try {
+    await request("/api/me");
+    await loadDashboardBySession();
+  } catch {
+    setAuthenticatedUI(false);
+  }
+}
+
+elements.loadDashboard.addEventListener("click", () => {
+  loadDashboardByFallback().catch((error) => setStatus(error.message, "error"));
+});
+elements.logoutButton.addEventListener("click", () => {
+  logout().catch((error) => setStatus(error.message, "error"));
+});
 elements.weightForm.addEventListener("submit", submitWeight);
 elements.measurementForm.addEventListener("submit", submitMeasurements);
 elements.askForm.addEventListener("submit", submitQuestion);
@@ -347,6 +403,9 @@ elements.loadMealPlan.addEventListener("click", loadMealPlan);
 elements.telegramUserId.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
-    loadDashboard();
+    loadDashboardByFallback().catch((error) => setStatus(error.message, "error"));
   }
 });
+
+bootstrapTelegramLogin();
+restoreSession();
