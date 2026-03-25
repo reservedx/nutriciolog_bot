@@ -8,6 +8,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const webDir = path.join(__dirname, "..", "web");
 const sessionCookieName = "nutriciolog_session";
+const adminIds = new Set(
+  String(process.env.TELEGRAM_ADMIN_IDS || process.env.TELEGRAM_ADMIN_ID || "742896049")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+);
 
 function sendJson(res, statusCode, payload, headers = {}) {
   res.writeHead(statusCode, {
@@ -202,6 +208,10 @@ function getIdentifierFromBody(body, req, sessionSecret) {
   return body.telegram_user_id || body.identifier || getSessionIdentifier(req, sessionSecret);
 }
 
+function isAdminIdentifier(identifier) {
+  return adminIds.has(String(identifier || "").trim());
+}
+
 export function createWebServer({ port, databaseService, nutritionService, telegramBotToken, telegramBotUsername }) {
   const sessionSecret = process.env.WEB_SESSION_SECRET || telegramBotToken;
   let resolvedBotUsername = telegramBotUsername || null;
@@ -265,7 +275,7 @@ export function createWebServer({ port, databaseService, nutritionService, teleg
           return sendJson(res, 404, { error: "Profile not found" });
         }
 
-        return sendJson(res, 200, { profile });
+        return sendJson(res, 200, { profile, isAdmin: isAdminIdentifier(identifier) });
       }
 
       if (req.method === "POST" && pathname === "/api/auth/telegram") {
@@ -337,6 +347,19 @@ export function createWebServer({ port, databaseService, nutritionService, teleg
         }
 
         return sendJson(res, 200, dashboard);
+      }
+
+      if (req.method === "GET" && pathname === "/api/admin/dashboard") {
+        const identifier = getSessionIdentifier(req, sessionSecret);
+        if (!identifier) {
+          return sendJson(res, 401, { error: "Unauthorized" });
+        }
+
+        if (!isAdminIdentifier(identifier)) {
+          return sendJson(res, 403, { error: "Forbidden" });
+        }
+
+        return sendJson(res, 200, databaseService.getAdminDashboard());
       }
 
       if (req.method === "GET" && pathname === "/api/history") {

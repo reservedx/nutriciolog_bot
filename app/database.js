@@ -693,6 +693,88 @@ export async function createDatabaseService({ databasePath }) {
       };
     },
 
+    getAdminDashboard() {
+      const stats = this.getAdminStats();
+      const registrations = getMany(
+        `
+          SELECT
+            strftime('%Y-%m-%d', created_at) AS day,
+            COUNT(*) AS registrations
+          FROM users
+          WHERE datetime(created_at) >= datetime('now', '-29 days')
+          GROUP BY strftime('%Y-%m-%d', created_at)
+          ORDER BY day ASC
+        `
+      );
+
+      const meals = getMany(
+        `
+          SELECT
+            strftime('%Y-%m-%d', created_at) AS day,
+            COUNT(*) AS meals
+          FROM meal_entries
+          WHERE datetime(created_at) >= datetime('now', '-29 days')
+          GROUP BY strftime('%Y-%m-%d', created_at)
+          ORDER BY day ASC
+        `
+      );
+
+      const weights = getMany(
+        `
+          SELECT
+            strftime('%Y-%m-%d', created_at) AS day,
+            COUNT(*) AS weights
+          FROM weight_logs
+          WHERE datetime(created_at) >= datetime('now', '-29 days')
+          GROUP BY strftime('%Y-%m-%d', created_at)
+          ORDER BY day ASC
+        `
+      );
+
+      const activeUsers = getMany(
+        `
+          SELECT
+            users.telegram_user_id,
+            users.telegram_username,
+            users.display_name,
+            users.goal,
+            COUNT(meal_entries.id) AS meals_count,
+            ROUND(COALESCE(SUM(meal_entries.calories), 0), 0) AS calories_logged,
+            MAX(meal_entries.created_at) AS last_meal_at
+          FROM users
+          LEFT JOIN meal_entries ON meal_entries.user_id = users.id
+          GROUP BY users.id
+          ORDER BY meals_count DESC, datetime(last_meal_at) DESC
+          LIMIT 10
+        `
+      );
+
+      const recentPayments = getMany(
+        `
+          SELECT
+            users.display_name,
+            users.telegram_username,
+            payment_logs.amount,
+            payment_logs.currency,
+            payment_logs.subscription_until,
+            payment_logs.created_at
+          FROM payment_logs
+          JOIN users ON users.id = payment_logs.user_id
+          ORDER BY datetime(payment_logs.created_at) DESC
+          LIMIT 10
+        `
+      );
+
+      return {
+        ...stats,
+        registrations,
+        mealsByDay: meals,
+        weightsByDay: weights,
+        activeUsers,
+        recentPayments
+      };
+    },
+
     seedDemoData(telegramUserId) {
       const user = getUserByIdentifier(telegramUserId);
       if (!user) return null;
