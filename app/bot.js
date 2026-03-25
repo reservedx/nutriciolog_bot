@@ -74,7 +74,7 @@ function createDayMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("Сводка за сегодня", "menu:today")],
     [Markup.button.callback("Разбор питания", "menu:quality")],
-    [Markup.button.callback("Что мне съесть дальше?", "menu:next_meal")],
+    [Markup.button.callback("Что я могу съесть дальше?", "menu:next_meal")],
     [Markup.button.callback("Обновить вес", "menu:weight"), Markup.button.callback("Журнал веса", "menu:weight_history")],
     [Markup.button.callback("Добавить замеры", "menu:measure")],
     [Markup.button.callback("Прогресс", "menu:progress")],
@@ -82,9 +82,35 @@ function createDayMenu() {
   ]);
 }
 
-function createNextMealTypeMenu() {
+function getSuggestedNextMealTypes(summary) {
+  const eatenTypes = new Set((summary?.meals || []).map((meal) => String(meal.meal_type || "").toLowerCase()));
+
+  if (eatenTypes.has("завтрак") && !eatenTypes.has("обед")) {
+    return ["lunch", "snack"];
+  }
+
+  if (eatenTypes.has("обед") && !eatenTypes.has("ужин")) {
+    return ["dinner", "snack"];
+  }
+
+  if (!eatenTypes.has("завтрак")) {
+    return ["breakfast", "snack"];
+  }
+
+  return ["dinner", "snack"];
+}
+
+function createNextMealTypeMenu(summary) {
+  const suggestedTypes = getSuggestedNextMealTypes(summary);
+  const labels = {
+    breakfast: "Завтрак",
+    lunch: "Обед",
+    dinner: "Ужин",
+    snack: "Перекус"
+  };
+
   return Markup.inlineKeyboard([
-    [Markup.button.callback("Ужин", "nextmealtype:dinner"), Markup.button.callback("Перекус", "nextmealtype:snack")],
+    suggestedTypes.map((type) => Markup.button.callback(labels[type], `nextmealtype:${type}`)),
     [Markup.button.callback("В меню", "menu:home")]
   ]);
 }
@@ -721,18 +747,18 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     return ctx.reply(formatMeasurementHistory(history), createDayMenu());
   }
 
-  async function promptNextMeal(ctx) {
+async function promptNextMeal(ctx) {
     if (!(await requireActiveAccess(ctx))) return;
     const summary = databaseService.getTodaySummary(ctx.from.id);
     return ctx.reply(
       [
-        "Подберу следующий прием пищи по твоему дневнику за сегодня.",
+        "Подберу, что ты еще можешь съесть сегодня, по твоему дневнику.",
         "",
         formatRemainingForNextMeal(summary),
         "",
         "Сначала выбери, что именно тебе нужно."
       ].join("\n"),
-      createNextMealTypeMenu()
+      createNextMealTypeMenu(summary)
     );
   }
 
@@ -755,9 +781,9 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
       );
     }
 
-    await ctx.reply(`Считаю остаток по дню и подбираю ${nextMealType === "dinner" ? "ужин" : "перекус"}...`);
+    await ctx.reply(`Считаю остаток по дню и подбираю ${mealTypeOptions[nextMealType] || "следующий прием пищи"}...`);
     const answer = await nutritionService.suggestNextMeal(profile, summary, {
-      nextMealType: nextMealType === "dinner" ? "ужин" : "перекус",
+      nextMealType: mealTypeOptions[nextMealType] || "прием пищи",
       style: nextMealStyles[style] || nextMealStyles.balanced
     });
 
@@ -1000,7 +1026,11 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
       return promptNextMeal(ctx);
     }
 
-    const nextMealType = payload.includes("перекус") ? "snack" : "dinner";
+    let nextMealType = "dinner";
+    if (payload.includes("завт")) nextMealType = "breakfast";
+    if (payload.includes("обед")) nextMealType = "lunch";
+    if (payload.includes("ужин")) nextMealType = "dinner";
+    if (payload.includes("перекус")) nextMealType = "snack";
     let style = "balanced";
     if (payload.includes("белк")) style = "protein";
     if (payload.includes("быстр")) style = "quick";
@@ -1173,15 +1203,15 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
 
   bot.action(/nextmealtype:(.+)/, async (ctx) => {
     const nextMealType = ctx.match[1];
-    if (!["dinner", "snack"].includes(nextMealType)) {
+    if (!["breakfast", "lunch", "dinner", "snack"].includes(nextMealType)) {
       await ctx.answerCbQuery("Неизвестный вариант");
       return;
     }
 
-    await ctx.answerCbQuery(nextMealType === "dinner" ? "Подберем ужин" : "Подберем перекус");
+    await ctx.answerCbQuery(`Подберем: ${mealTypeOptions[nextMealType] || "прием пищи"}`);
     await ctx.reply(
       [
-        `Выбрано: ${nextMealType === "dinner" ? "ужин" : "перекус"}.`,
+        `Выбрано: ${mealTypeOptions[nextMealType] || "прием пищи"}.`,
         "Теперь выбери, в каком стиле подобрать варианты."
       ].join("\n"),
       createNextMealStyleMenu(nextMealType)
@@ -1192,7 +1222,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     const nextMealType = ctx.match[1];
     const style = ctx.match[2];
 
-    if (!["dinner", "snack"].includes(nextMealType) || !nextMealStyles[style]) {
+    if (!["breakfast", "lunch", "dinner", "snack"].includes(nextMealType) || !nextMealStyles[style]) {
       await ctx.answerCbQuery("Неизвестный вариант");
       return;
     }
