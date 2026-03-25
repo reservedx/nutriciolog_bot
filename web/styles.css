@@ -304,6 +304,15 @@ h2 {
     linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02)),
     linear-gradient(135deg, rgba(86, 182, 255, 0.06), transparent 45%);
   border: 1px solid rgba(255, 255, 255, 0.07);
+  transition: transform 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease;
+  animation: cardRise 0.5s ease both;
+}
+
+.summary-card:hover,
+.metric:hover {
+  transform: translateY(-2px);
+  border-color: rgba(86, 182, 255, 0.18);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.16);
 }
 
 .summary-label,
@@ -321,6 +330,26 @@ h2 {
   font-size: 30px;
   font-weight: 700;
   letter-spacing: -0.04em;
+}
+
+.metric-icon,
+.summary-icon {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(37, 208, 165, 0.16), rgba(86, 182, 255, 0.14));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+}
+
+.metric-icon svg,
+.summary-icon svg {
+  width: 18px;
+  height: 18px;
 }
 
 .summary-caption {
@@ -503,6 +532,80 @@ h2 {
   gap: 14px;
 }
 
+.progress-spotlight {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 14px;
+  margin: 18px 0;
+}
+
+.spotlight-card,
+.compare-card {
+  position: relative;
+  overflow: hidden;
+  padding: 20px;
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018)),
+    linear-gradient(135deg, rgba(86, 182, 255, 0.08), transparent 48%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.spotlight-card::before,
+.compare-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), transparent 40%);
+  pointer-events: none;
+}
+
+.spotlight-label,
+.compare-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text-soft);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.spotlight-value {
+  font-family: "Sora", sans-serif;
+  font-size: clamp(30px, 4vw, 44px);
+  font-weight: 700;
+  letter-spacing: -0.05em;
+}
+
+.spotlight-caption,
+.compare-caption {
+  margin-top: 10px;
+  color: var(--text-soft);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.period-compare {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.compare-value {
+  font-family: "Sora", sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.compare-meta {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
 .timeline-item {
   display: grid;
   grid-template-columns: 18px 1fr;
@@ -660,6 +763,17 @@ button:active {
   color: var(--danger);
 }
 
+@keyframes cardRise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (max-width: 1200px) {
   .hero-shell,
   .content-grid,
@@ -668,7 +782,9 @@ button:active {
   }
 
   .hero-mini-grid,
-  .metric-grid {
+  .metric-grid,
+  .period-compare,
+  .progress-spotlight {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -703,7 +819,9 @@ button:active {
 
   .hero-mini-grid,
   .metric-grid,
-  .summary-grid {
+  .summary-grid,
+  .period-compare,
+  .progress-spotlight {
     grid-template-columns: 1fr;
   }
 
