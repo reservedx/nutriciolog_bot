@@ -235,6 +235,32 @@
                 <article class="card glass wide">
                   <div class="section-head">
                     <div>
+                      <p class="eyebrow">Add Data</p>
+                      <h2>Добавить еду, вес и замеры</h2>
+                    </div>
+                  </div>
+                  <div class="hint">
+                    Вес и замеры можно вносить в разделе «Прогресс», а здесь ты можешь быстро добавить прием пищи текстом,
+                    например: «рис, курица и овощи».
+                  </div>
+                  <form id="mealForm" class="stack">
+                    <textarea id="mealDescription" rows="4" placeholder="Например: овсянка с бананом и арахисовой пастой"></textarea>
+                    <div class="login-row">
+                      <select id="mealType">
+                        <option value="не указано">Тип приема пищи</option>
+                        <option value="завтрак">Завтрак</option>
+                        <option value="обед">Обед</option>
+                        <option value="ужин">Ужин</option>
+                        <option value="перекус">Перекус</option>
+                      </select>
+                      <button type="submit">Добавить прием пищи</button>
+                    </div>
+                  </form>
+                </article>
+
+                <article class="card glass wide">
+                  <div class="section-head">
+                    <div>
                       <p class="eyebrow">Nutrition</p>
                       <h2>История питания</h2>
                     </div>

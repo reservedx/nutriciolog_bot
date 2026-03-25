@@ -653,6 +653,7 @@ button {
 }
 
 input,
+select,
 textarea {
   width: 100%;
   padding: 15px 16px;
@@ -665,15 +666,21 @@ textarea {
 }
 
 input::placeholder,
+select,
 textarea::placeholder {
   color: rgba(156, 175, 192, 0.72);
 }
 
 input:focus,
+select:focus,
 textarea:focus {
   border-color: rgba(86, 182, 255, 0.38);
   box-shadow: 0 0 0 4px rgba(86, 182, 255, 0.08);
   background: rgba(255, 255, 255, 0.06);
+}
+
+select {
+  appearance: none;
 }
 
 textarea {

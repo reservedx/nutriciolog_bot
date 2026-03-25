@@ -397,6 +397,43 @@ export function createWebServer({ port, databaseService, nutritionService, teleg
         return sendJson(res, 200, { log: savedLog });
       }
 
+      if (req.method === "POST" && pathname === "/api/meal") {
+        const body = await readJsonBody(req);
+        const identifier = getIdentifierFromBody(body, req, sessionSecret);
+        const description = String(body.description || "").trim();
+        if (!identifier) {
+          return sendJson(res, 401, { error: "Unauthorized" });
+        }
+        if (!description) {
+          return sendJson(res, 400, { error: "Meal description is required" });
+        }
+
+        const profile = databaseService.getUserByIdentifier(identifier);
+        if (!profile) {
+          return sendJson(res, 404, { error: "Profile not found" });
+        }
+
+        const report = await nutritionService.analyzeMealText(description);
+        const entry = databaseService.saveMealEntry({
+          user_id: profile.id,
+          telegram_message_id: null,
+          image_file_id: null,
+          dish_name: report.dishName,
+          meal_type: body.meal_type || "не указано",
+          estimated_weight_grams: report.estimatedWeightGrams,
+          calories: report.calories,
+          protein: report.protein,
+          fat: report.fat,
+          carbs: report.carbs,
+          confidence: report.confidence,
+          ingredients: report.ingredients,
+          assumptions: report.assumptions,
+          advice: report.advice
+        });
+
+        return sendJson(res, 200, { ok: true, entry, report });
+      }
+
       if (req.method === "POST" && pathname === "/api/ask") {
         const body = await readJsonBody(req);
         const identifier = getIdentifierFromBody(body, req, sessionSecret);
