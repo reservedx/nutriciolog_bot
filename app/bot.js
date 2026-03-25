@@ -74,6 +74,7 @@ function createDayMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("Сводка за сегодня", "menu:today")],
     [Markup.button.callback("Разбор питания", "menu:quality")],
+    [Markup.button.callback("Моя норма КБЖУ", "menu:targets")],
     [Markup.button.callback("Что я могу съесть дальше?", "menu:next_meal")],
     [Markup.button.callback("Обновить вес", "menu:weight"), Markup.button.callback("Журнал веса", "menu:weight_history")],
     [Markup.button.callback("Добавить замеры", "menu:measure")],
@@ -253,6 +254,19 @@ function formatProfile(profile) {
     `Белки: ${profile.daily_protein ?? "не заданы"} г`,
     `Жиры: ${profile.daily_fat ?? "не заданы"} г`,
     `Углеводы: ${profile.daily_carbs ?? "не заданы"} г`
+  ].join("\n");
+}
+
+function formatTargets(profile) {
+  return [
+    "Моя норма КБЖУ",
+    "",
+    `Калории: ${profile.daily_calories ?? "не заданы"} ккал`,
+    `Белки: ${profile.daily_protein ?? "не заданы"} г`,
+    `Жиры: ${profile.daily_fat ?? "не заданы"} г`,
+    `Углеводы: ${profile.daily_carbs ?? "не заданы"} г`,
+    "",
+    `Цель: ${profile.goal || "не указана"}`
   ].join("\n");
 }
 
@@ -767,6 +781,11 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     return ctx.reply([formatProfile(profile), "", formatAccessStatus(access)].join("\n"), createStartMenu(profile));
   }
 
+  async function showTargets(ctx) {
+    const { profile } = getProfileAndAccess(ctx);
+    return ctx.reply(formatTargets(profile), createDayMenu());
+  }
+
   async function showToday(ctx) {
     if (!(await requireActiveAccess(ctx))) return;
     const summary = databaseService.getTodaySummary(ctx.from.id);
@@ -1064,6 +1083,7 @@ async function promptNextMeal(ctx) {
   );
 
   bot.command("profile", showProfile);
+  bot.command("targets", showTargets);
   bot.command("today", showToday);
   bot.command("history", showHistory);
   bot.command("setup", startProfileSetup);
@@ -1238,6 +1258,7 @@ async function promptNextMeal(ctx) {
   });
 
   bot.action("menu:profile", async (ctx) => { await ctx.answerCbQuery(); await showProfile(ctx); });
+  bot.action("menu:targets", async (ctx) => { await ctx.answerCbQuery(); await showTargets(ctx); });
   bot.action("menu:today", async (ctx) => { await ctx.answerCbQuery(); await showToday(ctx); });
   bot.action("menu:history", async (ctx) => { await ctx.answerCbQuery(); await showHistory(ctx); });
   bot.action("menu:subscription", async (ctx) => { await ctx.answerCbQuery(); await showSubscription(ctx); });
