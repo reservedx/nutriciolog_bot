@@ -59,6 +59,72 @@ body {
   box-shadow: var(--shadow);
 }
 
+.glass {
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-mini-grid {
+  margin-top: 26px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.mini-card {
+  padding: 16px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(246, 239, 230, 0.82));
+  border: 1px solid rgba(21, 33, 43, 0.06);
+}
+
+.mini-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.mini-label {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+
+.mini-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(21, 33, 43, 0.06);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mini-value {
+  margin-top: 14px;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.mini-chart {
+  margin-top: 12px;
+  min-height: 68px;
+}
+
+.sparkline-svg {
+  width: 100%;
+  height: 68px;
+  display: block;
+}
+
+.sparkline-empty {
+  height: 68px;
+}
+
 .eyebrow {
   margin: 0 0 10px;
   color: var(--green);
@@ -130,6 +196,38 @@ h2 {
 .dashboard {
   display: grid;
   gap: 22px;
+}
+
+.tabs-shell {
+  border-radius: 30px;
+  padding: 18px;
+}
+
+.tabs-nav {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.tab-button {
+  background: rgba(255, 255, 255, 0.68);
+  color: var(--ink);
+  box-shadow: none;
+  border: 1px solid rgba(21, 33, 43, 0.08);
+}
+
+.tab-button.active {
+  background: linear-gradient(135deg, #0f8a6b, #11795f);
+  color: #fff;
+}
+
+.tab-panel {
+  display: none;
+}
+
+.tab-panel.active {
+  display: block;
 }
 
 .card {
@@ -215,6 +313,87 @@ h2 {
   width: 100%;
   height: auto;
   display: block;
+}
+
+.macro-bars {
+  display: grid;
+  gap: 14px;
+}
+
+.macro-row {
+  display: grid;
+  gap: 8px;
+}
+
+.macro-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.macro-top span {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.macro-track {
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(21, 33, 43, 0.08);
+  overflow: hidden;
+}
+
+.macro-fill {
+  height: 100%;
+  border-radius: inherit;
+}
+
+.macro-fill.calories {
+  background: linear-gradient(90deg, #0f8a6b, #4eb596);
+}
+
+.macro-fill.protein {
+  background: linear-gradient(90deg, #1d3244, #4f6c87);
+}
+
+.macro-fill.fat {
+  background: linear-gradient(90deg, #d8a44a, #efc270);
+}
+
+.macro-fill.carbs {
+  background: linear-gradient(90deg, #7f8fd5, #a8b1ef);
+}
+
+.timeline {
+  margin-top: 20px;
+  display: grid;
+  gap: 12px;
+}
+
+.timeline-item {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.timeline-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-top: 6px;
+  background: linear-gradient(135deg, #0f8a6b, #d8a44a);
+  box-shadow: 0 0 0 6px rgba(15, 138, 107, 0.1);
+}
+
+.timeline-body {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.timeline-item:last-child .timeline-body {
+  border-bottom: 0;
 }
 
 .content-grid {
@@ -368,6 +547,7 @@ button:active {
     grid-template-columns: 1fr;
   }
 
+  .hero-mini-grid,
   .summary-grid,
   .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -400,6 +580,7 @@ button:active {
   }
 
   .summary-grid,
+  .hero-mini-grid,
   .metric-grid {
     grid-template-columns: 1fr;
   }
