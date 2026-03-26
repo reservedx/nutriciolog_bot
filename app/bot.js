@@ -211,7 +211,7 @@ function createMealTypeMenu(entryId) {
 
 function createHistoryMenu(meals) {
   const rows = meals.slice(0, 5).map((meal) => [
-    Markup.button.callback(`Удалить #${meal.id} ${meal.dish_name.slice(0, 18)}`, `delete:${meal.id}`)
+    Markup.button.callback(`Удалить: ${meal.dish_name.slice(0, 22)}`, `delete:${meal.id}`)
   ]);
   rows.push([Markup.button.callback("В меню", "menu:home")]);
   return Markup.inlineKeyboard(rows);
@@ -1201,7 +1201,7 @@ async function promptNextMeal(ctx) {
       [
         formatNutritionReport(report, savedEntry.meal_type || "не указано"),
         "",
-        `Запись #${savedEntry.id} добавлена в дневник.`,
+        "Прием пищи добавлен в дневник.",
         "Теперь выбери тип приема пищи."
       ].join("\n"),
       createMealTypeMenu(savedEntry.id)
@@ -1726,7 +1726,7 @@ async function promptNextMeal(ctx) {
     }
 
     await safeAnswerCbQuery(ctx, `Тип: ${mealType}`);
-    await ctx.reply(`Запись #${updatedEntry.id} обновлена. Тип приема пищи: ${mealType}.`, createAddFoodMenu());
+    await ctx.reply(`Тип приема пищи обновлен: ${mealType}.`, createAddFoodMenu());
   });
 
   bot.action(/mealfix:(\d+)/, async (ctx) => {
@@ -1761,7 +1761,7 @@ async function promptNextMeal(ctx) {
     }
 
     await safeAnswerCbQuery(ctx, "Запись удалена");
-    await ctx.reply(`Запись #${entryId} удалена из дневника.`, createMoreMenu(webAppUrl));
+    await ctx.reply("Запись удалена из дневника.", createMoreMenu(webAppUrl));
   });
 
   bot.catch((error, ctx) => {
@@ -1840,7 +1840,7 @@ async function promptNextMeal(ctx) {
         [
           formatNutritionReport(report, savedEntry.meal_type || "не указано"),
           "",
-          `Запись #${savedEntry.id} добавлена в дневник.`,
+          "Прием пищи добавлен в дневник.",
           "Теперь выбери тип приема пищи."
         ].join("\n"),
         createMealTypeMenu(savedEntry.id)
@@ -2000,7 +2000,7 @@ async function promptNextMeal(ctx) {
           [
             formatNutritionReport(report, savedEntry.meal_type || "не указано"),
             "",
-            `Запись #${savedEntry.id} добавлена в дневник.`,
+            "Прием пищи добавлен в дневник.",
             "Теперь выбери тип приема пищи."
           ].join("\n"),
           createMealTypeMenu(savedEntry.id)
