@@ -1,7 +1,7 @@
 const reminderMessages = {
-  breakfast: "Не забудь добавить свой завтрак.",
-  lunch: "Не забудь добавить свой обед.",
-  dinner: "Не забудь добавить свой ужин."
+  breakfast: "Доброе утро! Не забудь добавить свой завтрак.",
+  lunch: "Напоминаю про обед. Добавь прием пищи, чтобы дневник был точнее.",
+  dinner: "Время ужина. Если уже поел, добавь прием пищи в дневник."
 };
 
 export function startNotificationScheduler({ bot, databaseService, intervalMs = 60_000 }) {
@@ -32,7 +32,7 @@ export function startNotificationScheduler({ bot, databaseService, intervalMs = 
             [
               text,
               "",
-              "Когда добавишь прием пищи, я учту его в дневнике и прогрессе."
+              "Я сразу учту его в дневнике, КБЖУ и прогрессе за день."
             ].join("\n")
           );
           databaseService.markNotificationSent(reminder.telegramUserId, reminder.mealKey, new Date());
