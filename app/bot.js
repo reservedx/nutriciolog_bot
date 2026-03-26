@@ -667,6 +667,30 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
   const pendingMode = new Map();
   const pendingContext = new Map();
   const webAppUrl = process.env.WEB_APP_URL || "https://nutriciologbot-production.up.railway.app";
+
+  function isStaleCallbackError(error) {
+    const message = String(error?.response?.description || error?.description || error?.message || "").toLowerCase();
+    return message.includes("query is too old") || message.includes("query id is invalid") || message.includes("response timeout expired");
+  }
+
+  async function safeAnswerCbQuery(ctx, text) {
+    try {
+      await ctx.answerCbQuery(text);
+    } catch (error) {
+      if (isStaleCallbackError(error)) {
+        console.warn("Ignoring stale callback query");
+        return;
+      }
+      throw error;
+    }
+  }
+
+  function registerMenuAction(action, handler) {
+    bot.action(action, async (ctx) => {
+      await safeAnswerCbQuery(ctx);
+      await handler(ctx);
+    });
+  }
   const adminIds = new Set(
     String(process.env.TELEGRAM_ADMIN_IDS || process.env.TELEGRAM_ADMIN_ID || "742896049")
       .split(",")
@@ -1431,52 +1455,52 @@ async function promptNextMeal(ctx) {
     return ctx.reply(`Профиль обновлен вручную.\n\n${formatProfile(updatedProfile)}`, createStartMenu(updatedProfile));
   });
 
-  bot.action("menu:home", async (ctx) => { await ctx.answerCbQuery(); await showHome(ctx); });
-  bot.action("guide:start", async (ctx) => { await ctx.answerCbQuery(); await showStartGuide(ctx); });
-  bot.action("guide:add_food", async (ctx) => { await ctx.answerCbQuery(); await showAddFoodGuide(ctx); });
-  bot.action("guide:day", async (ctx) => { await ctx.answerCbQuery(); await showDayGuide(ctx); });
-  bot.action("guide:more", async (ctx) => { await ctx.answerCbQuery(); await showMoreGuide(ctx); });
+  registerMenuAction("menu:home", showHome);
+  registerMenuAction("guide:start", showStartGuide);
+  registerMenuAction("guide:add_food", showAddFoodGuide);
+  registerMenuAction("guide:day", showDayGuide);
+  registerMenuAction("guide:more", showMoreGuide);
   bot.action("guide:add_food_photo", async (ctx) => {
-    await ctx.answerCbQuery();
+    await safeAnswerCbQuery(ctx);
     await ctx.reply(
       "Теперь пришли фото еды следующим сообщением. Перед отправкой фото рекомендуем добавить комментарий-уточнение, что именно на тарелке, если продукт неочевиден — так результат будет точнее.",
       createAddFoodMenu()
     );
   });
   bot.action("guide:label_photo", async (ctx) => {
-    await ctx.answerCbQuery();
+    await safeAnswerCbQuery(ctx);
     await promptLabelMode(ctx);
   });
 
-  bot.action("menu:profile", async (ctx) => { await ctx.answerCbQuery(); await showProfile(ctx); });
-  bot.action("menu:targets", async (ctx) => { await ctx.answerCbQuery(); await showTargets(ctx); });
-  bot.action("menu:edit_targets", async (ctx) => { await ctx.answerCbQuery(); await promptTargetsMode(ctx); });
-  bot.action("menu:notifications", async (ctx) => { await ctx.answerCbQuery(); await showNotifications(ctx); });
-  bot.action("menu:notifications_edit", async (ctx) => { await ctx.answerCbQuery(); await promptNotificationsMode(ctx); });
-  bot.action("menu:notifications_toggle", async (ctx) => { await ctx.answerCbQuery(); await toggleNotifications(ctx); });
-  bot.action("menu:today", async (ctx) => { await ctx.answerCbQuery(); await showToday(ctx); });
-  bot.action("menu:history", async (ctx) => { await ctx.answerCbQuery(); await showHistory(ctx); });
-  bot.action("menu:subscription", async (ctx) => { await ctx.answerCbQuery(); await showSubscription(ctx); });
-  bot.action("menu:buy_subscription", async (ctx) => { await ctx.answerCbQuery(); await sendSubscriptionLink(ctx); });
-  bot.action("menu:setup", async (ctx) => { await ctx.answerCbQuery(); await startProfileSetup(ctx); });
-  bot.action("menu:meal_text", async (ctx) => { await ctx.answerCbQuery(); await promptMealTextMode(ctx); });
-  bot.action("menu:ask", async (ctx) => { await ctx.answerCbQuery(); await promptQuestionMode(ctx); });
-  bot.action("menu:weight", async (ctx) => { await ctx.answerCbQuery(); await promptWeightMode(ctx); });
-  bot.action("menu:weight_history", async (ctx) => { await ctx.answerCbQuery(); await showWeight(ctx); });
-  bot.action("menu:measure", async (ctx) => { await ctx.answerCbQuery(); await promptMeasurementMode(ctx); });
-  bot.action("menu:progress", async (ctx) => { await ctx.answerCbQuery(); await showProgress(ctx); });
-  bot.action("menu:mealplan", async (ctx) => { await ctx.answerCbQuery(); await sendMealPlan(ctx, "день"); });
-  bot.action("menu:quality", async (ctx) => { await ctx.answerCbQuery(); await sendDietQuality(ctx); });
-  bot.action("menu:next_meal", async (ctx) => { await ctx.answerCbQuery(); await promptNextMeal(ctx); });
+  registerMenuAction("menu:profile", showProfile);
+  registerMenuAction("menu:targets", showTargets);
+  registerMenuAction("menu:edit_targets", promptTargetsMode);
+  registerMenuAction("menu:notifications", showNotifications);
+  registerMenuAction("menu:notifications_edit", promptNotificationsMode);
+  registerMenuAction("menu:notifications_toggle", toggleNotifications);
+  registerMenuAction("menu:today", showToday);
+  registerMenuAction("menu:history", showHistory);
+  registerMenuAction("menu:subscription", showSubscription);
+  registerMenuAction("menu:buy_subscription", sendSubscriptionLink);
+  registerMenuAction("menu:setup", startProfileSetup);
+  registerMenuAction("menu:meal_text", promptMealTextMode);
+  registerMenuAction("menu:ask", promptQuestionMode);
+  registerMenuAction("menu:weight", promptWeightMode);
+  registerMenuAction("menu:weight_history", showWeight);
+  registerMenuAction("menu:measure", promptMeasurementMode);
+  registerMenuAction("menu:progress", showProgress);
+  registerMenuAction("menu:mealplan", (ctx) => sendMealPlan(ctx, "день"));
+  registerMenuAction("menu:quality", sendDietQuality);
+  registerMenuAction("menu:next_meal", promptNextMeal);
 
   bot.action(/nextmealtype:(.+)/, async (ctx) => {
     const nextMealType = ctx.match[1];
     if (!["breakfast", "lunch", "dinner", "snack"].includes(nextMealType)) {
-      await ctx.answerCbQuery("Неизвестный вариант");
+      await safeAnswerCbQuery(ctx, "Неизвестный вариант");
       return;
     }
 
-    await ctx.answerCbQuery(`Подберем: ${mealTypeOptions[nextMealType] || "прием пищи"}`);
+    await safeAnswerCbQuery(ctx, `Подберем: ${mealTypeOptions[nextMealType] || "прием пищи"}`);
     await ctx.reply(
       [
         `Выбрано: ${mealTypeOptions[nextMealType] || "прием пищи"}.`,
@@ -1491,18 +1515,18 @@ async function promptNextMeal(ctx) {
     const style = ctx.match[2];
 
     if (!["breakfast", "lunch", "dinner", "snack"].includes(nextMealType) || !nextMealStyles[style]) {
-      await ctx.answerCbQuery("Неизвестный вариант");
+      await safeAnswerCbQuery(ctx, "Неизвестный вариант");
       return;
     }
 
-    await ctx.answerCbQuery("Подбираю варианты");
+    await safeAnswerCbQuery(ctx, "Подбираю варианты");
     await sendNextMealSuggestion(ctx, nextMealType, style);
   });
 
   bot.action("menu:cancel_setup", async (ctx) => {
     profileWizard.delete(String(ctx.from.id));
     pendingMode.delete(String(ctx.from.id));
-    await ctx.answerCbQuery("Настройка отменена");
+    await safeAnswerCbQuery(ctx, "Настройка отменена");
     await ctx.reply("Ок, текущий сценарий остановил.", createHomeMenu(databaseService.ensureUser(ctx.from)));
   });
 
@@ -1510,18 +1534,18 @@ async function promptNextMeal(ctx) {
     const state = profileWizard.get(String(ctx.from.id));
     const selectedSex = sexOptions[ctx.match[1]];
     if (!state || state.step !== "sex") {
-      await ctx.answerCbQuery("Сначала запусти настройку профиля");
+      await safeAnswerCbQuery(ctx, "Сначала запусти настройку профиля");
       return;
     }
     if (!selectedSex) {
-      await ctx.answerCbQuery("Неизвестный вариант");
+      await safeAnswerCbQuery(ctx, "Неизвестный вариант");
       return;
     }
 
     state.draft.sex = ctx.match[1];
     state.step = "age";
     profileWizard.set(String(ctx.from.id), state);
-    await ctx.answerCbQuery(`Пол: ${selectedSex.label}`);
+    await safeAnswerCbQuery(ctx, `Пол: ${selectedSex.label}`);
     await ctx.reply(createWizardPrompt(state.step, state.draft));
   });
 
@@ -1529,18 +1553,18 @@ async function promptNextMeal(ctx) {
     const state = profileWizard.get(String(ctx.from.id));
     const selectedActivity = activityOptions[ctx.match[1]];
     if (!state || state.step !== "activity") {
-      await ctx.answerCbQuery("Сначала запусти настройку профиля");
+      await safeAnswerCbQuery(ctx, "Сначала запусти настройку профиля");
       return;
     }
     if (!selectedActivity) {
-      await ctx.answerCbQuery("Неизвестный вариант");
+      await safeAnswerCbQuery(ctx, "Неизвестный вариант");
       return;
     }
 
     state.draft.activity = ctx.match[1];
     state.step = "goal";
     profileWizard.set(String(ctx.from.id), state);
-    await ctx.answerCbQuery(`Активность: ${selectedActivity.label}`);
+    await safeAnswerCbQuery(ctx, `Активность: ${selectedActivity.label}`);
     await ctx.reply(createWizardPrompt(state.step, state.draft), createGoalMenu());
   });
 
@@ -1548,11 +1572,11 @@ async function promptNextMeal(ctx) {
     const state = profileWizard.get(String(ctx.from.id));
     const selectedGoal = goalOptions[ctx.match[1]];
     if (!state || state.step !== "goal") {
-      await ctx.answerCbQuery("Сначала запусти настройку профиля");
+      await safeAnswerCbQuery(ctx, "Сначала запусти настройку профиля");
       return;
     }
     if (!selectedGoal) {
-      await ctx.answerCbQuery("Неизвестная цель");
+      await safeAnswerCbQuery(ctx, "Неизвестная цель");
       return;
     }
 
@@ -1561,7 +1585,7 @@ async function promptNextMeal(ctx) {
     const updatedProfile = databaseService.updateUserProfile(buildProfileFromDraft(ctx.from.id, state.draft, targets));
     profileWizard.delete(String(ctx.from.id));
 
-    await ctx.answerCbQuery(`Цель: ${selectedGoal.label}`);
+    await safeAnswerCbQuery(ctx, `Цель: ${selectedGoal.label}`);
     await ctx.reply(
       [
         "Готово, я рассчитал твою ориентировочную норму.",
@@ -1581,17 +1605,17 @@ async function promptNextMeal(ctx) {
     const entryId = Number(ctx.match[1]);
     const mealType = mealTypeOptions[ctx.match[2]];
     if (!mealType) {
-      await ctx.answerCbQuery("Неизвестный тип приема пищи");
+      await safeAnswerCbQuery(ctx, "Неизвестный тип приема пищи");
       return;
     }
 
     const updatedEntry = databaseService.updateMealType(ctx.from.id, entryId, mealType);
     if (!updatedEntry) {
-      await ctx.answerCbQuery("Запись не найдена");
+      await safeAnswerCbQuery(ctx, "Запись не найдена");
       return;
     }
 
-    await ctx.answerCbQuery(`Тип: ${mealType}`);
+    await safeAnswerCbQuery(ctx, `Тип: ${mealType}`);
     await ctx.reply(`Запись #${updatedEntry.id} обновлена. Тип приема пищи: ${mealType}.`, createAddFoodMenu());
   });
 
@@ -1599,19 +1623,19 @@ async function promptNextMeal(ctx) {
     const entryId = Number(ctx.match[1]);
     const entry = databaseService.getMealEntryForUser(ctx.from.id, entryId);
     if (!entry) {
-      await ctx.answerCbQuery("Запись не найдена");
+      await safeAnswerCbQuery(ctx, "Запись не найдена");
       return;
     }
 
     const deleted = databaseService.deleteMealEntry(ctx.from.id, entryId);
     if (!deleted) {
-      await ctx.answerCbQuery("Не удалось удалить запись");
+      await safeAnswerCbQuery(ctx, "Не удалось удалить запись");
       return;
     }
 
     pendingMode.set(String(ctx.from.id), "meal_correction");
     pendingContext.set(String(ctx.from.id), { imageFileId: entry.image_file_id });
-    await ctx.answerCbQuery("Запись удалена");
+    await safeAnswerCbQuery(ctx, "Запись удалена");
     await ctx.reply(
       "Ошибочную запись убрал из журнала. Теперь напиши уточнение, что именно было на тарелке, и я пересчитаю по тому же фото.",
       createAddFoodMenu()
@@ -1622,12 +1646,20 @@ async function promptNextMeal(ctx) {
     const entryId = Number(ctx.match[1]);
     const deleted = databaseService.deleteMealEntry(ctx.from.id, entryId);
     if (!deleted) {
-      await ctx.answerCbQuery("Запись не найдена");
+      await safeAnswerCbQuery(ctx, "Запись не найдена");
       return;
     }
 
-    await ctx.answerCbQuery("Запись удалена");
+    await safeAnswerCbQuery(ctx, "Запись удалена");
     await ctx.reply(`Запись #${entryId} удалена из дневника.`, createMoreMenu(webAppUrl));
+  });
+
+  bot.catch((error, ctx) => {
+    if (isStaleCallbackError(error)) {
+      console.warn("Ignored stale callback query in bot.catch");
+      return;
+    }
+    console.error("Unhandled error while processing", ctx?.update, error);
   });
 
   bot.on("pre_checkout_query", async (ctx) => {
