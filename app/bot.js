@@ -727,6 +727,48 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     return adminIds.has(String(ctx.from?.id || ""));
   }
 
+  function isTemporaryServiceError(error) {
+    const message = String(error?.response?.description || error?.message || "").toLowerCase();
+    const status = Number(error?.status || error?.response?.statusCode || error?.response?.error_code || 0);
+
+    return (
+      status === 429 ||
+      status >= 500 ||
+      message.includes("insufficient_quota") ||
+      message.includes("rate limit") ||
+      message.includes("overloaded") ||
+      message.includes("temporarily unavailable") ||
+      message.includes("timeout") ||
+      message.includes("fetch failed") ||
+      message.includes("network")
+    );
+  }
+
+  function formatTemporaryServiceMessage() {
+    return [
+      "Сервис сейчас временно недоступен.",
+      "Похоже, проблема на стороне AI или сети.",
+      "Попробуй еще раз через минуту."
+    ].join("\n");
+  }
+
+  async function withGracefulFailure(ctx, fn, fallbackMarkup) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (isTemporaryServiceError(error)) {
+        console.error("Temporary service error:", error);
+        await ctx.reply(
+          formatTemporaryServiceMessage(),
+          fallbackMarkup || createHomeMenu(databaseService.ensureUser(ctx.from))
+        );
+        return null;
+      }
+
+      throw error;
+    }
+  }
+
   async function showAdminStats(ctx) {
     databaseService.ensureUser(ctx.from);
 
@@ -862,7 +904,10 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
   }
 
   async function sendSubscriptionLink(ctx) {
-    const invoiceLink = await createSubscriptionInvoiceLink(ctx);
+    const invoiceLink = await withGracefulFailure(ctx, () => createSubscriptionInvoiceLink(ctx), createSubscriptionMenu());
+    if (!invoiceLink) {
+      return null;
+    }
     return ctx.reply(
       [
         "Готово, вот ссылка на оформление подписки.",
@@ -1012,10 +1057,19 @@ async function promptNextMeal(ctx) {
     }
 
     await ctx.reply(`Считаю остаток по дню и подбираю ${mealTypeOptions[nextMealType] || "следующий прием пищи"}...`);
-    const answer = await nutritionService.suggestNextMeal(profile, summary, {
-      nextMealType: mealTypeOptions[nextMealType] || "прием пищи",
-      style: nextMealStyles[style] || nextMealStyles.balanced
-    });
+    const answer = await withGracefulFailure(
+      ctx,
+      () =>
+        nutritionService.suggestNextMeal(profile, summary, {
+          nextMealType: mealTypeOptions[nextMealType] || "прием пищи",
+          style: nextMealStyles[style] || nextMealStyles.balanced
+        }),
+      createDayMenu()
+    );
+
+    if (!answer) {
+      return null;
+    }
 
     return ctx.reply(answer, createNextMealResultMenu(nextMealType, style));
   }
@@ -1090,7 +1144,10 @@ async function promptNextMeal(ctx) {
   async function saveTextMeal(ctx, description) {
     if (!(await requireActiveAccess(ctx))) return;
     const profile = databaseService.ensureUser(ctx.from);
-    const report = await nutritionService.analyzeMealText(description);
+    const report = await withGracefulFailure(ctx, () => nutritionService.analyzeMealText(description), createAddFoodMenu());
+    if (!report) {
+      return null;
+    }
     const savedEntry = databaseService.saveMealEntry({
       user_id: profile.id,
       telegram_message_id: ctx.message.message_id,
@@ -1122,7 +1179,14 @@ async function promptNextMeal(ctx) {
   async function answerQuestion(ctx, question) {
     if (!(await requireActiveAccess(ctx))) return;
     const profile = databaseService.ensureUser(ctx.from);
-    const answer = await nutritionService.answerNutritionQuestion(question, profile);
+    const answer = await withGracefulFailure(
+      ctx,
+      () => nutritionService.answerNutritionQuestion(question, profile),
+      createMoreMenu(webAppUrl)
+    );
+    if (!answer) {
+      return null;
+    }
     await ctx.reply(answer, createMoreMenu(webAppUrl));
   }
 
@@ -1130,7 +1194,14 @@ async function promptNextMeal(ctx) {
     if (!(await requireActiveAccess(ctx))) return;
     const profile = databaseService.ensureUser(ctx.from);
     await ctx.reply(`Составляю меню на ${period}...`);
-    const plan = await nutritionService.generateMealPlan(profile, period);
+    const plan = await withGracefulFailure(
+      ctx,
+      () => nutritionService.generateMealPlan(profile, period),
+      createMoreMenu(webAppUrl)
+    );
+    if (!plan) {
+      return null;
+    }
     await ctx.reply(plan, createMoreMenu(webAppUrl));
   }
 
@@ -1144,7 +1215,14 @@ async function promptNextMeal(ctx) {
     }
 
     await ctx.reply("Смотрю на твой дневник за сегодня и готовлю разбор...");
-    const review = await nutritionService.evaluateDietQuality(profile, summary);
+    const review = await withGracefulFailure(
+      ctx,
+      () => nutritionService.evaluateDietQuality(profile, summary),
+      createDayMenu()
+    );
+    if (!review) {
+      return null;
+    }
     await ctx.reply(review, createDayMenu());
   }
 
@@ -1687,14 +1765,28 @@ async function promptNextMeal(ctx) {
 
       if (currentMode === "label_photo") {
         await ctx.reply("Смотрю на этикетку и готовлю короткий разбор...");
-        const report = await nutritionService.analyzeProductLabel(imageUrl, profile);
+        const report = await withGracefulFailure(
+          ctx,
+          () => nutritionService.analyzeProductLabel(imageUrl, profile),
+          createAddFoodMenu()
+        );
+        if (!report) {
+          return;
+        }
         await ctx.reply(formatLabelReport(report), createAddFoodMenu());
         return;
       }
 
       const clarification = ctx.message.caption?.trim() || "";
       await ctx.reply("Смотрю на фото, считаю КБЖУ и записываю прием пищи...");
-      const report = await nutritionService.analyzeMealImage(imageUrl, clarification);
+      const report = await withGracefulFailure(
+        ctx,
+        () => nutritionService.analyzeMealImage(imageUrl, clarification),
+        createAddFoodMenu()
+      );
+      if (!report) {
+        return;
+      }
       const savedEntry = databaseService.saveMealEntry({
         user_id: profile.id,
         telegram_message_id: ctx.message.message_id,
@@ -1723,7 +1815,7 @@ async function promptNextMeal(ctx) {
       );
     } catch (error) {
       console.error("Failed to analyze meal photo:", error);
-      await ctx.reply("Не получилось обработать фото. Попробуй отправить более четкий снимок или проверь токены в `.env`.", createAddFoodMenu());
+      await ctx.reply("Не получилось обработать фото. Попробуй отправить более четкий снимок или чуть позже повторить попытку.", createAddFoodMenu());
     }
   });
 
@@ -1847,7 +1939,14 @@ async function promptNextMeal(ctx) {
       try {
         const profile = databaseService.ensureUser(ctx.from);
         const imageUrl = await getTelegramFileUrl(telegramBotToken, context.imageFileId);
-        const report = await nutritionService.analyzeMealImage(imageUrl, ctx.message.text.trim());
+        const report = await withGracefulFailure(
+          ctx,
+          () => nutritionService.analyzeMealImage(imageUrl, ctx.message.text.trim()),
+          createAddFoodMenu()
+        );
+        if (!report) {
+          return null;
+        }
         const savedEntry = databaseService.saveMealEntry({
           user_id: profile.id,
           telegram_message_id: ctx.message.message_id,
@@ -1876,7 +1975,7 @@ async function promptNextMeal(ctx) {
         );
       } catch (error) {
         console.error("Failed to re-analyze corrected meal photo:", error);
-        return ctx.reply("Не получилось пересчитать блюдо. Попробуй прислать фото еще раз с уточнением в подписи.", createAddFoodMenu());
+        return ctx.reply("Не получилось пересчитать блюдо. Попробуй еще раз через минуту или пришли фото заново с уточнением в подписи.", createAddFoodMenu());
       }
     }
 
