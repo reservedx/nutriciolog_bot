@@ -93,7 +93,7 @@ function createTargetsMenu() {
 function createNotificationsMenu(settings) {
   const isEnabled = Number(settings?.enabled ?? 1) === 1;
   return Markup.inlineKeyboard([
-    [Markup.button.callback(isEnabled ? "Выключить уведомления" : "Включить уведомления", "menu:notifications_toggle")],
+    [Markup.button.callback(isEnabled ? "Выключить напоминания" : "Включить напоминания", "menu:notifications_toggle")],
     [Markup.button.callback("Изменить расписание", "menu:notifications_edit")],
     [Markup.button.callback("В меню", "menu:home")]
   ]);
@@ -154,7 +154,7 @@ function createMoreMenu(webAppUrl) {
     [Markup.button.callback("Меню на день", "menu:mealplan")],
     [Markup.button.callback("История записей", "menu:history")],
     [Markup.button.callback("Задать вопрос нутрициологу", "menu:ask")],
-    [Markup.button.callback("Уведомления", "menu:notifications")],
+    [Markup.button.callback("Напоминания", "menu:notifications")],
     [Markup.button.url("Веб-интерфейс", webAppUrl)],
     [Markup.button.callback("В меню", "menu:home")]
   ]);
@@ -817,7 +817,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
         "Меню на день: готовый рацион под твой профиль.",
         "История записей: последние приемы пищи и возможность удалить лишнее.",
         "Задать вопрос нутрициологу: можно спросить про питание, белок, дефицит, продукты и т.д.",
-        "Уведомления: настрой время напоминаний про завтрак, обед и ужин.",
+        "Напоминания: настрой время напоминаний про завтрак, обед и ужин.",
         "Веб-интерфейс: откроет личный кабинет в браузере."
       ].join("\n"),
       createMoreMenu(webAppUrl)
@@ -1210,7 +1210,7 @@ async function promptNextMeal(ctx) {
         "Начать: настройка профиля и нормы, если профиль еще не заполнен.",
         "Добавить еду: фото, этикетка или текст.",
         "Мой кабинет: сводка, вес, замеры и прогресс.",
-        "Еще: меню на день, история, уведомления и вопросы.",
+        "Еще: меню на день, история, напоминания и вопросы.",
         "",
         "Полезные команды: /profile, /targets, /notifications, /today, /history"
       ].join("\n"),
@@ -1856,7 +1856,7 @@ async function promptNextMeal(ctx) {
         profile.daily_calories ? "Профиль уже настроен, так что можно сразу добавлять еду или смотреть свой день." : "Начать: настройка профиля.",
         "Добавить еду: фото или текст.",
         "Мой кабинет: сводка, вес, замеры и прогресс.",
-        "Еще: меню, история, уведомления и вопросы."
+        "Еще: меню, история, напоминания и вопросы."
       ].join("\n"),
       createHomeMenu(profile)
     );
