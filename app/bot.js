@@ -894,6 +894,27 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
   async function showHome(ctx) {
     const { profile } = getProfileAndAccess(ctx);
     const smartTips = getHomeSuggestions(ctx);
+    const today = databaseService.getTodaySummary(ctx.from.id);
+    const consumedCalories = round(today?.totals?.calories || 0);
+    const dailyCalories = round(profile?.daily_calories || 0);
+    const remainingCalories = Math.max(0, dailyCalories - consumedCalories);
+
+    if (profile?.daily_calories) {
+      return sendScreen(
+        ctx,
+        [
+          `Текущий профиль: ${profile.display_name}`,
+          "",
+          `Сегодня съедено: ${consumedCalories} / ${dailyCalories} ккал`,
+          `Осталось на сегодня: ${remainingCalories} ккал`,
+          "",
+          "Сейчас для тебя полезно:",
+          ...smartTips.map((tip) => `• ${tip}`)
+        ].join("\n"),
+        createHomeMenu(profile)
+      );
+    }
+
     return sendScreen(
       ctx,
       [
