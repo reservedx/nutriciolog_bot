@@ -3,6 +3,7 @@ import { createBot } from "./bot.js";
 import { createDatabaseService } from "./database.js";
 import { createNutritionService } from "./services/nutrition.js";
 import { createWebServer } from "./webServer.js";
+import { startNotificationScheduler } from "./notificationScheduler.js";
 
 async function main() {
   console.log(`Using database path: ${config.databasePath}`);
@@ -39,21 +40,28 @@ async function main() {
 
   await webServer.start();
   await bot.launch();
+  const notificationScheduler = startNotificationScheduler({
+    bot,
+    databaseService
+  });
   console.log(`Bot is running in polling mode on port ${config.port}`);
 
   process.once("SIGINT", () => {
+    notificationScheduler.stop();
     webServer.stop();
     databaseService.close();
     bot.stop("SIGINT");
   });
 
   process.once("SIGTERM", () => {
+    notificationScheduler.stop();
     webServer.stop();
     databaseService.close();
     bot.stop("SIGTERM");
   });
 
   process.once("exit", () => {
+    notificationScheduler.stop();
     webServer.stop();
     databaseService.close();
   });

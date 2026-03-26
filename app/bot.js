@@ -90,6 +90,15 @@ function createTargetsMenu() {
   ]);
 }
 
+function createNotificationsMenu(settings) {
+  const isEnabled = Number(settings?.enabled ?? 1) === 1;
+  return Markup.inlineKeyboard([
+    [Markup.button.callback(isEnabled ? "Выключить уведомления" : "Включить уведомления", "menu:notifications_toggle")],
+    [Markup.button.callback("Изменить расписание", "menu:notifications_edit")],
+    [Markup.button.callback("В меню", "menu:home")]
+  ]);
+}
+
 function getSuggestedNextMealTypes(summary) {
   const eatenTypes = new Set((summary?.meals || []).map((meal) => String(meal.meal_type || "").toLowerCase()));
 
@@ -145,6 +154,7 @@ function createMoreMenu(webAppUrl) {
     [Markup.button.callback("Меню на день", "menu:mealplan")],
     [Markup.button.callback("История записей", "menu:history")],
     [Markup.button.callback("Задать вопрос нутрициологу", "menu:ask")],
+    [Markup.button.callback("Уведомления", "menu:notifications")],
     [Markup.button.url("Веб-интерфейс", webAppUrl)],
     [Markup.button.callback("В меню", "menu:home")]
   ]);
@@ -263,6 +273,43 @@ function formatProfile(profile) {
     `Жиры: ${profile.daily_fat ?? "не заданы"} г`,
     `Углеводы: ${profile.daily_carbs ?? "не заданы"} г`
   ].join("\n");
+}
+
+function formatNotifications(settings) {
+  const breakfastTime = settings?.breakfast_time || "10:00";
+  const lunchTime = settings?.lunch_time || "13:00";
+  const dinnerTime = settings?.dinner_time || "18:00";
+  const status = Number(settings?.enabled ?? 1) === 1 ? "включены" : "выключены";
+
+  return [
+    `Напоминания сейчас: ${status}.`,
+    "",
+    "Текущее расписание:",
+    `Завтрак: ${breakfastTime}`,
+    `Обед: ${lunchTime}`,
+    `Ужин: ${dinnerTime}`,
+    "",
+    "Бот отправит напоминание, только если этот прием пищи еще не добавлен за сегодня."
+  ].join("\n");
+}
+
+function parseNotificationSchedule(text) {
+  const parts = String(text || "")
+    .split("|")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length !== 3) {
+    return null;
+  }
+
+  const [breakfast_time, lunch_time, dinner_time] = parts;
+  const isValid = /^([01]\d|2[0-3]):([0-5]\d)$/;
+  if (!isValid.test(breakfast_time) || !isValid.test(lunch_time) || !isValid.test(dinner_time)) {
+    return null;
+  }
+
+  return { breakfast_time, lunch_time, dinner_time };
 }
 
 function formatTargets(profile) {
@@ -770,6 +817,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
         "Меню на день: готовый рацион под твой профиль.",
         "История записей: последние приемы пищи и возможность удалить лишнее.",
         "Задать вопрос нутрициологу: можно спросить про питание, белок, дефицит, продукты и т.д.",
+        "Уведомления: настрой время напоминаний про завтрак, обед и ужин.",
         "Веб-интерфейс: откроет личный кабинет в браузере."
       ].join("\n"),
       createMoreMenu(webAppUrl)
@@ -815,6 +863,12 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     return ctx.reply(formatTargets(profile), createTargetsMenu());
   }
 
+  async function showNotifications(ctx) {
+    if (!(await requireActiveAccess(ctx))) return;
+    const data = databaseService.getNotificationSettings(ctx.from.id);
+    return ctx.reply(formatNotifications(data?.settings), createNotificationsMenu(data?.settings));
+  }
+
   async function promptTargetsMode(ctx) {
     if (!(await requireActiveAccess(ctx))) return;
     profileWizard.delete(String(ctx.from.id));
@@ -829,6 +883,42 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
         "2200 | 150 | 70 | 220"
       ].join("\n"),
       createTargetsMenu()
+    );
+  }
+
+  async function promptNotificationsMode(ctx) {
+    if (!(await requireActiveAccess(ctx))) return;
+    profileWizard.delete(String(ctx.from.id));
+    pendingMode.set(String(ctx.from.id), "notifications_schedule");
+    pendingContext.delete(String(ctx.from.id));
+    const data = databaseService.getNotificationSettings(ctx.from.id);
+    return ctx.reply(
+      [
+        formatNotifications(data?.settings),
+        "",
+        "Отправь новое расписание в формате:",
+        "завтрак | обед | ужин",
+        "",
+        "Пример:",
+        "10:00 | 13:00 | 18:00"
+      ].join("\n"),
+      createNotificationsMenu(data?.settings)
+    );
+  }
+
+  async function toggleNotifications(ctx) {
+    if (!(await requireActiveAccess(ctx))) return;
+    const current = databaseService.getNotificationSettings(ctx.from.id);
+    const nextEnabled = Number(current?.settings?.enabled ?? 1) !== 1;
+    const updated = databaseService.toggleNotificationSettings(ctx.from.id, nextEnabled);
+
+    return ctx.reply(
+      [
+        nextEnabled ? "Напоминания включены." : "Напоминания выключены.",
+        "",
+        formatNotifications(updated?.settings)
+      ].join("\n"),
+      createNotificationsMenu(updated?.settings)
     );
   }
 
@@ -1120,9 +1210,9 @@ async function promptNextMeal(ctx) {
         "Начать: настройка профиля и нормы, если профиль еще не заполнен.",
         "Добавить еду: фото, этикетка или текст.",
         "Мой кабинет: сводка, вес, замеры и прогресс.",
-        "Еще: меню на день, история, подписка и вопросы.",
+        "Еще: меню на день, история, уведомления и вопросы.",
         "",
-        "Команды по оплате: /subscription, /buy, /support, /terms"
+        "Полезные команды: /profile, /targets, /notifications, /today, /history"
       ].join("\n"),
       createHomeMenu(databaseService.ensureUser(ctx.from))
     )
@@ -1130,6 +1220,31 @@ async function promptNextMeal(ctx) {
 
   bot.command("profile", showProfile);
   bot.command("targets", showTargets);
+  bot.command("notifications", showNotifications);
+  bot.command("setnotifications", async (ctx) => {
+    if (!(await requireActiveAccess(ctx))) return;
+    const payload = ctx.message.text.replace("/setnotifications", "").trim();
+    if (!payload) {
+      return promptNotificationsMode(ctx);
+    }
+
+    const parsed = parseNotificationSchedule(payload);
+    if (!parsed) {
+      const current = databaseService.getNotificationSettings(ctx.from.id);
+      return ctx.reply(
+        [
+          "Формат команды:",
+          "/setnotifications завтрак | обед | ужин",
+          "Пример:",
+          "/setnotifications 10:00 | 13:00 | 18:00"
+        ].join("\n"),
+        createNotificationsMenu(current?.settings)
+      );
+    }
+
+    const updated = databaseService.updateNotificationSettings(ctx.from.id, parsed);
+    return ctx.reply(`Расписание уведомлений обновлено.\n\n${formatNotifications(updated?.settings)}`, createNotificationsMenu(updated?.settings));
+  });
   bot.command("settargets", async (ctx) => {
     if (!(await requireActiveAccess(ctx))) return;
     const payload = ctx.message.text.replace("/settargets", "").trim();
@@ -1336,6 +1451,9 @@ async function promptNextMeal(ctx) {
   bot.action("menu:profile", async (ctx) => { await ctx.answerCbQuery(); await showProfile(ctx); });
   bot.action("menu:targets", async (ctx) => { await ctx.answerCbQuery(); await showTargets(ctx); });
   bot.action("menu:edit_targets", async (ctx) => { await ctx.answerCbQuery(); await promptTargetsMode(ctx); });
+  bot.action("menu:notifications", async (ctx) => { await ctx.answerCbQuery(); await showNotifications(ctx); });
+  bot.action("menu:notifications_edit", async (ctx) => { await ctx.answerCbQuery(); await promptNotificationsMode(ctx); });
+  bot.action("menu:notifications_toggle", async (ctx) => { await ctx.answerCbQuery(); await toggleNotifications(ctx); });
   bot.action("menu:today", async (ctx) => { await ctx.answerCbQuery(); await showToday(ctx); });
   bot.action("menu:history", async (ctx) => { await ctx.answerCbQuery(); await showHistory(ctx); });
   bot.action("menu:subscription", async (ctx) => { await ctx.answerCbQuery(); await showSubscription(ctx); });
@@ -1659,6 +1777,30 @@ async function promptNextMeal(ctx) {
       return ctx.reply(`Норма КБЖУ обновлена.\n\n${formatTargets(updatedProfile)}`, createTargetsMenu());
     }
 
+    if (currentMode === "notifications_schedule") {
+      if (!(await requireActiveAccess(ctx))) return;
+      pendingMode.delete(String(ctx.from.id));
+      pendingContext.delete(String(ctx.from.id));
+      const parsed = parseNotificationSchedule(ctx.message.text.trim());
+      if (!parsed) {
+        const current = databaseService.getNotificationSettings(ctx.from.id);
+        return ctx.reply(
+          [
+            "Не смог разобрать расписание.",
+            "Используй формат:",
+            "10:00 | 13:00 | 18:00"
+          ].join("\n"),
+          createNotificationsMenu(current?.settings)
+        );
+      }
+
+      const updated = databaseService.updateNotificationSettings(ctx.from.id, parsed);
+      return ctx.reply(
+        `Расписание уведомлений обновлено.\n\n${formatNotifications(updated?.settings)}`,
+        createNotificationsMenu(updated?.settings)
+      );
+    }
+
     if (currentMode === "meal_correction") {
       if (!(await requireActiveAccess(ctx))) return;
       const context = pendingContext.get(String(ctx.from.id));
@@ -1714,7 +1856,7 @@ async function promptNextMeal(ctx) {
         profile.daily_calories ? "Профиль уже настроен, так что можно сразу добавлять еду или смотреть свой день." : "Начать: настройка профиля.",
         "Добавить еду: фото или текст.",
         "Мой кабинет: сводка, вес, замеры и прогресс.",
-        "Еще: меню, история, подписка и вопросы."
+        "Еще: меню, история, уведомления и вопросы."
       ].join("\n"),
       createHomeMenu(profile)
     );

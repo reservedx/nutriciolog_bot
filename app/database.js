@@ -39,6 +39,25 @@ function toSqliteDateTime(dateInput) {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
+function toLocalDateKey(dateInput = new Date()) {
+  const date = new Date(dateInput);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function toLocalTimeKey(dateInput = new Date()) {
+  const date = new Date(dateInput);
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+function isValidTimeString(value) {
+  return /^([01]\d|2[0-3]):([0-5]\d)$/.test(String(value || "").trim());
+}
+
 export async function createDatabaseService({ databasePath }) {
   const SQL = await initSqlJs({
     locateFile: (file) => path.join(__dirname, "..", "node_modules", "sql.js", "dist", file)
@@ -157,6 +176,21 @@ export async function createDatabaseService({ databasePath }) {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
+
+    CREATE TABLE IF NOT EXISTS notification_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL UNIQUE,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      breakfast_time TEXT NOT NULL DEFAULT '10:00',
+      lunch_time TEXT NOT NULL DEFAULT '13:00',
+      dinner_time TEXT NOT NULL DEFAULT '18:00',
+      last_breakfast_sent_at TEXT,
+      last_lunch_sent_at TEXT,
+      last_dinner_sent_at TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
   `);
 
   const mealColumns = getMany("PRAGMA table_info(meal_entries)");
@@ -181,6 +215,29 @@ export async function createDatabaseService({ databasePath }) {
     db.exec("ALTER TABLE users ADD COLUMN subscription_ends_at TEXT");
   }
 
+  const notificationColumns = getMany("PRAGMA table_info(notification_settings)");
+  if (!notificationColumns.some((column) => column.name === "enabled")) {
+    db.exec("ALTER TABLE notification_settings ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1");
+  }
+  if (!notificationColumns.some((column) => column.name === "breakfast_time")) {
+    db.exec("ALTER TABLE notification_settings ADD COLUMN breakfast_time TEXT NOT NULL DEFAULT '10:00'");
+  }
+  if (!notificationColumns.some((column) => column.name === "lunch_time")) {
+    db.exec("ALTER TABLE notification_settings ADD COLUMN lunch_time TEXT NOT NULL DEFAULT '13:00'");
+  }
+  if (!notificationColumns.some((column) => column.name === "dinner_time")) {
+    db.exec("ALTER TABLE notification_settings ADD COLUMN dinner_time TEXT NOT NULL DEFAULT '18:00'");
+  }
+  if (!notificationColumns.some((column) => column.name === "last_breakfast_sent_at")) {
+    db.exec("ALTER TABLE notification_settings ADD COLUMN last_breakfast_sent_at TEXT");
+  }
+  if (!notificationColumns.some((column) => column.name === "last_lunch_sent_at")) {
+    db.exec("ALTER TABLE notification_settings ADD COLUMN last_lunch_sent_at TEXT");
+  }
+  if (!notificationColumns.some((column) => column.name === "last_dinner_sent_at")) {
+    db.exec("ALTER TABLE notification_settings ADD COLUMN last_dinner_sent_at TEXT");
+  }
+
   db.run(
     `
       UPDATE users
@@ -193,6 +250,23 @@ export async function createDatabaseService({ databasePath }) {
   );
 
   persist();
+
+  function ensureNotificationSettingsForUser(userId) {
+    db.run(
+      `
+        INSERT INTO notification_settings (
+          user_id,
+          enabled,
+          breakfast_time,
+          lunch_time,
+          dinner_time,
+          updated_at
+        ) VALUES (?, 1, '10:00', '13:00', '18:00', CURRENT_TIMESTAMP)
+        ON CONFLICT(user_id) DO NOTHING
+      `,
+      [userId]
+    );
+  }
 
   function getUserByTelegramId(telegramUserId) {
     return getOne("SELECT * FROM users WHERE telegram_user_id = ?", [String(telegramUserId)]);
@@ -262,8 +336,10 @@ export async function createDatabaseService({ databasePath }) {
         ]
       );
 
+      const user = getUserByTelegramId(telegramUserId);
+      ensureNotificationSettingsForUser(user.id);
       persist();
-      return getUserByTelegramId(telegramUserId);
+      return user;
     },
 
     getAccessStatus(telegramUserId) {
@@ -403,6 +479,152 @@ export async function createDatabaseService({ databasePath }) {
 
       persist();
       return getUserByTelegramId(profile.telegram_user_id);
+    },
+
+    getNotificationSettings(telegramUserId) {
+      const user = getUserByIdentifier(telegramUserId);
+      if (!user) return null;
+
+      ensureNotificationSettingsForUser(user.id);
+      persist();
+
+      const settings = getOne("SELECT * FROM notification_settings WHERE user_id = ?", [user.id]);
+      return { user, settings };
+    },
+
+    updateNotificationSettings(telegramUserId, updates = {}) {
+      const user = getUserByIdentifier(telegramUserId);
+      if (!user) return null;
+
+      ensureNotificationSettingsForUser(user.id);
+      const current = getOne("SELECT * FROM notification_settings WHERE user_id = ?", [user.id]);
+      const next = {
+        enabled: typeof updates.enabled === "boolean" ? (updates.enabled ? 1 : 0) : Number(current.enabled ?? 1),
+        breakfast_time: isValidTimeString(updates.breakfast_time) ? updates.breakfast_time : current.breakfast_time || "10:00",
+        lunch_time: isValidTimeString(updates.lunch_time) ? updates.lunch_time : current.lunch_time || "13:00",
+        dinner_time: isValidTimeString(updates.dinner_time) ? updates.dinner_time : current.dinner_time || "18:00"
+      };
+
+      db.run(
+        `
+          UPDATE notification_settings
+          SET
+            enabled = ?,
+            breakfast_time = ?,
+            lunch_time = ?,
+            dinner_time = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE user_id = ?
+        `,
+        [next.enabled, next.breakfast_time, next.lunch_time, next.dinner_time, user.id]
+      );
+
+      persist();
+      return {
+        user,
+        settings: getOne("SELECT * FROM notification_settings WHERE user_id = ?", [user.id])
+      };
+    },
+
+    toggleNotificationSettings(telegramUserId, enabled) {
+      return this.updateNotificationSettings(telegramUserId, { enabled: Boolean(enabled) });
+    },
+
+    getDueNotifications(now = new Date()) {
+      const todayKey = toLocalDateKey(now);
+      const currentTime = toLocalTimeKey(now);
+      const settingsRows = getMany(
+        `
+          SELECT
+            notification_settings.*,
+            users.telegram_user_id,
+            users.display_name
+          FROM notification_settings
+          JOIN users ON users.id = notification_settings.user_id
+          WHERE notification_settings.enabled = 1
+        `
+      );
+
+      const mealColumns = {
+        breakfast: "last_breakfast_sent_at",
+        lunch: "last_lunch_sent_at",
+        dinner: "last_dinner_sent_at"
+      };
+      const mealTimes = {
+        breakfast: "breakfast_time",
+        lunch: "lunch_time",
+        dinner: "dinner_time"
+      };
+      const mealLabels = {
+        breakfast: "завтрак",
+        lunch: "обед",
+        dinner: "ужин"
+      };
+
+      const due = [];
+
+      for (const row of settingsRows) {
+        const loggedMeals = new Set(
+          getMany(
+            `
+              SELECT DISTINCT meal_type
+              FROM meal_entries
+              WHERE user_id = ? AND created_at >= ?
+            `,
+            [row.user_id, startOfDayIso(now)]
+          ).map((entry) => String(entry.meal_type || "").toLowerCase())
+        );
+
+        for (const mealKey of ["breakfast", "lunch", "dinner"]) {
+          const scheduledTime = row[mealTimes[mealKey]];
+          const lastSentAt = row[mealColumns[mealKey]];
+          const alreadyLogged = loggedMeals.has(mealLabels[mealKey]);
+          const alreadySentToday = lastSentAt && String(lastSentAt).startsWith(todayKey);
+
+          if (!isValidTimeString(scheduledTime) || alreadyLogged || alreadySentToday) {
+            continue;
+          }
+
+          if (currentTime >= scheduledTime) {
+            due.push({
+              userId: row.user_id,
+              telegramUserId: row.telegram_user_id,
+              displayName: row.display_name,
+              mealKey,
+              scheduledTime
+            });
+          }
+        }
+      }
+
+      return due;
+    },
+
+    markNotificationSent(telegramUserId, mealKey, sentAt = new Date()) {
+      const user = getUserByIdentifier(telegramUserId);
+      if (!user) return false;
+
+      ensureNotificationSettingsForUser(user.id);
+
+      const columnMap = {
+        breakfast: "last_breakfast_sent_at",
+        lunch: "last_lunch_sent_at",
+        dinner: "last_dinner_sent_at"
+      };
+      const column = columnMap[mealKey];
+      if (!column) return false;
+
+      db.run(
+        `
+          UPDATE notification_settings
+          SET ${column} = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE user_id = ?
+        `,
+        [toSqliteDateTime(sentAt), user.id]
+      );
+
+      persist();
+      return true;
     },
 
     saveMealEntry(entry) {
