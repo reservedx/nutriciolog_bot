@@ -27,6 +27,7 @@ export function startNotificationScheduler({ bot, databaseService, intervalMs = 
         }
 
         try {
+          console.log(`Sending ${reminder.mealKey} reminder to ${reminder.telegramUserId} at ${reminder.scheduledTime}`);
           await bot.telegram.sendMessage(
             reminder.telegramUserId,
             [

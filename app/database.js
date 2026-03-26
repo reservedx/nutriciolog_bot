@@ -5,6 +5,7 @@ import initSqlJs from "sql.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const appTimeZone = process.env.APP_TIMEZONE || "Europe/Moscow";
 
 function startOfDayIso(date = new Date()) {
   const local = new Date(date);
@@ -39,19 +40,51 @@ function toSqliteDateTime(dateInput) {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
-function toLocalDateKey(dateInput = new Date()) {
-  const date = new Date(dateInput);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+function getTimeZoneParts(dateInput = new Date(), timeZone = appTimeZone) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  });
+
+  return Object.fromEntries(
+    formatter
+      .formatToParts(new Date(dateInput))
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
 }
 
-function toLocalTimeKey(dateInput = new Date()) {
-  const date = new Date(dateInput);
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${hours}:${minutes}`;
+function toLocalDateKey(dateInput = new Date(), timeZone = appTimeZone) {
+  const parts = getTimeZoneParts(dateInput, timeZone);
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function toLocalTimeKey(dateInput = new Date(), timeZone = appTimeZone) {
+  const parts = getTimeZoneParts(dateInput, timeZone);
+  return `${parts.hour}:${parts.minute}`;
+}
+
+function parseSqliteDateTime(value) {
+  if (!value) return null;
+
+  const stringValue = String(value).trim();
+  const match = stringValue.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?)?$/
+  );
+
+  if (!match) {
+    const parsed = new Date(stringValue);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  const [, year, month, day, hour = "00", minute = "00", second = "00"] = match;
+  return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second)));
 }
 
 function isValidTimeString(value) {
@@ -531,8 +564,8 @@ export async function createDatabaseService({ databasePath }) {
     },
 
     getDueNotifications(now = new Date()) {
-      const todayKey = toLocalDateKey(now);
-      const currentTime = toLocalTimeKey(now);
+      const todayKey = toLocalDateKey(now, appTimeZone);
+      const currentTime = toLocalTimeKey(now, appTimeZone);
       const settingsRows = getMany(
         `
           SELECT
@@ -567,19 +600,25 @@ export async function createDatabaseService({ databasePath }) {
         const loggedMeals = new Set(
           getMany(
             `
-              SELECT DISTINCT meal_type
+              SELECT meal_type, created_at
               FROM meal_entries
-              WHERE user_id = ? AND created_at >= ?
+              WHERE user_id = ? AND datetime(created_at) >= datetime('now', '-2 days')
             `,
-            [row.user_id, startOfDayIso(now)]
-          ).map((entry) => String(entry.meal_type || "").toLowerCase())
+            [row.user_id]
+          )
+            .filter((entry) => {
+              const entryDate = parseSqliteDateTime(entry.created_at);
+              return entryDate && toLocalDateKey(entryDate, appTimeZone) === todayKey;
+            })
+            .map((entry) => String(entry.meal_type || "").toLowerCase())
         );
 
         for (const mealKey of ["breakfast", "lunch", "dinner"]) {
           const scheduledTime = row[mealTimes[mealKey]];
           const lastSentAt = row[mealColumns[mealKey]];
           const alreadyLogged = loggedMeals.has(mealLabels[mealKey]);
-          const alreadySentToday = lastSentAt && String(lastSentAt).startsWith(todayKey);
+          const lastSentDate = parseSqliteDateTime(lastSentAt);
+          const alreadySentToday = lastSentDate && toLocalDateKey(lastSentDate, appTimeZone) === todayKey;
 
           if (!isValidTimeString(scheduledTime) || alreadyLogged || alreadySentToday) {
             continue;
