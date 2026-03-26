@@ -343,6 +343,10 @@ function formatAccessStatus(access) {
     return "Статус доступа пока не определен.";
   }
 
+  if (access.isFree || access.status === "free") {
+    return "Сейчас бот бесплатный для всех пользователей.";
+  }
+
   if (access.isPaid) {
     return [
       "Подписка активна",
@@ -915,36 +919,11 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
   }
 
   async function showSubscription(ctx) {
-    const { access } = getProfileAndAccess(ctx);
-    return sendScreen(
-      ctx,
-      [
-        formatAccessStatus(access),
-        "",
-        `Оплата в Telegram: ${billingConfig.subscriptionPriceXtr} Stars за ${Math.round(billingConfig.subscriptionPeriodSeconds / 86400)} дней.`,
-        billingConfig.paySupportText
-      ].join("\n"),
-      createSubscriptionMenu()
-    );
+    return sendScreen(ctx, "Сейчас бот бесплатный для всех пользователей.", createHomeMenu(databaseService.ensureUser(ctx.from)));
   }
 
   async function sendSubscriptionLink(ctx) {
-    const invoiceLink = await withGracefulFailure(ctx, () => createSubscriptionInvoiceLink(ctx), createSubscriptionMenu());
-    if (!invoiceLink) {
-      return null;
-    }
-    return ctx.reply(
-      [
-        "Готово, вот ссылка на оформление подписки.",
-        `Стоимость: ${billingConfig.subscriptionPriceXtr} Stars.`,
-        "",
-        "После успешной оплаты доступ продлится автоматически."
-      ].join("\n"),
-      Markup.inlineKeyboard([
-        [Markup.button.url("Оплатить подписку", invoiceLink)],
-        [Markup.button.callback("Проверить статус", "menu:subscription")]
-      ])
-    );
+    return sendScreen(ctx, "Оплата сейчас не требуется: бот открыт бесплатно для всех.", createHomeMenu(databaseService.ensureUser(ctx.from)));
   }
 
   async function showProfile(ctx) {

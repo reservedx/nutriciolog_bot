@@ -382,25 +382,16 @@ export async function createDatabaseService({ databasePath }) {
       const now = new Date();
       const trialEndsAt = user.trial_ends_at ? new Date(user.trial_ends_at) : null;
       const subscriptionEndsAt = user.subscription_ends_at ? new Date(user.subscription_ends_at) : null;
-      const isSubscriptionActive = subscriptionEndsAt && subscriptionEndsAt > now;
-      const isTrialActive = trialEndsAt && trialEndsAt > now;
-
-      let status = "expired";
-      if (isSubscriptionActive) {
-        status = "active";
-      } else if (isTrialActive) {
-        status = "trial";
-      }
-
-      const activeUntil = isSubscriptionActive ? subscriptionEndsAt : isTrialActive ? trialEndsAt : trialEndsAt || subscriptionEndsAt;
+      const activeUntil = subscriptionEndsAt || trialEndsAt || null;
       const remainingMs = activeUntil ? activeUntil.getTime() - now.getTime() : 0;
 
       return {
         user,
-        status,
-        isActive: status === "active" || status === "trial",
-        isTrial: status === "trial",
-        isPaid: status === "active",
+        status: "free",
+        isActive: true,
+        isTrial: false,
+        isPaid: false,
+        isFree: true,
         activeUntil: activeUntil ? activeUntil.toISOString() : null,
         trialEndsAt: trialEndsAt ? trialEndsAt.toISOString() : null,
         subscriptionEndsAt: subscriptionEndsAt ? subscriptionEndsAt.toISOString() : null,
