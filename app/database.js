@@ -212,6 +212,16 @@ export async function createDatabaseService({ databasePath }) {
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
 
+    CREATE TABLE IF NOT EXISTS meal_plan_cache (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL UNIQUE,
+      period TEXT NOT NULL DEFAULT 'день',
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
     CREATE TABLE IF NOT EXISTS notification_settings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL UNIQUE,
@@ -907,6 +917,45 @@ export async function createDatabaseService({ databasePath }) {
         weightProgress: this.getWeightProgress(telegramUserId),
         measurementProgress: this.getMeasurementProgress(telegramUserId)
       };
+    },
+
+    getMealPlanCache(telegramUserId) {
+      const user = getUserByIdentifier(telegramUserId);
+      if (!user) return null;
+
+      const plan = getOne("SELECT * FROM meal_plan_cache WHERE user_id = ?", [user.id]);
+      return plan ? { user, plan } : null;
+    },
+
+    saveMealPlanCache(telegramUserId, period, content) {
+      const user = getUserByIdentifier(telegramUserId);
+      if (!user) return null;
+
+      const existing = getOne("SELECT id FROM meal_plan_cache WHERE user_id = ?", [user.id]);
+      if (existing?.id) {
+        db.run(
+          `
+            UPDATE meal_plan_cache
+            SET
+              period = ?,
+              content = ?,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = ?
+          `,
+          [period || "день", content, user.id]
+        );
+      } else {
+        db.run(
+          `
+            INSERT INTO meal_plan_cache (user_id, period, content)
+            VALUES (?, ?, ?)
+          `,
+          [user.id, period || "день", content]
+        );
+      }
+
+      persist();
+      return this.getMealPlanCache(telegramUserId);
     },
 
     getAdminStats() {

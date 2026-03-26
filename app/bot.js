@@ -181,6 +181,13 @@ function createMoreMenu(webAppUrl) {
   ]);
 }
 
+function createMealPlanMenu() {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback("Поменять меню", "menu:mealplan_refresh")],
+    [Markup.button.callback("В меню", "menu:home")]
+  ]);
+}
+
 function createSubscriptionMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("Оформить подписку", "menu:buy_subscription")],
@@ -545,6 +552,25 @@ function formatProgress(weightProgress, measurementProgress) {
   }
 
   return sections.join("\n");
+}
+
+function formatMealPlanScreen(planCache) {
+  if (!planCache?.plan?.content) {
+    return [
+      "Меню на день пока не составлено.",
+      "",
+      "Нажми «Поменять меню», и я соберу для тебя новый вариант под текущий профиль."
+    ].join("\n");
+  }
+
+  const updatedAt = formatJournalDate(planCache.plan.updated_at || planCache.plan.created_at);
+  return [
+    `Твое текущее меню на ${planCache.plan.period || "день"}:`,
+    "",
+    planCache.plan.content,
+    "",
+    `Обновлено: ${updatedAt}`
+  ].join("\n");
 }
 
 function formatAdminStats(stats) {
@@ -1302,16 +1328,27 @@ async function promptNextMeal(ctx) {
   async function sendMealPlan(ctx, period) {
     if (!(await requireActiveAccess(ctx))) return;
     const profile = databaseService.ensureUser(ctx.from);
-    await ctx.reply(`Составляю меню на ${period}...`);
+    await sendScreen(ctx, `Составляю меню на ${period}...`, createMealPlanMenu());
     const plan = await withGracefulFailure(
       ctx,
       () => nutritionService.generateMealPlan(profile, period),
-      createMoreMenu(webAppUrl)
+      createMealPlanMenu()
     );
     if (!plan) {
       return null;
     }
-    await ctx.reply(plan, createMoreMenu(webAppUrl));
+    const savedPlan = databaseService.saveMealPlanCache(ctx.from.id, period, plan);
+    return sendScreen(ctx, formatMealPlanScreen(savedPlan), createMealPlanMenu());
+  }
+
+  async function showMealPlan(ctx) {
+    if (!(await requireActiveAccess(ctx))) return;
+    const cachedPlan = databaseService.getMealPlanCache(ctx.from.id);
+    if (!cachedPlan?.plan?.content) {
+      return sendMealPlan(ctx, "день");
+    }
+
+    return sendScreen(ctx, formatMealPlanScreen(cachedPlan), createMealPlanMenu());
   }
 
   async function sendDietQuality(ctx) {
@@ -1676,7 +1713,8 @@ async function promptNextMeal(ctx) {
   registerMenuAction("menu:weight_history", showWeight);
   registerMenuAction("menu:measure", promptMeasurementMode);
   registerMenuAction("menu:progress", showProgress);
-  registerMenuAction("menu:mealplan", (ctx) => sendMealPlan(ctx, "день"));
+  registerMenuAction("menu:mealplan", showMealPlan);
+  registerMenuAction("menu:mealplan_refresh", (ctx) => sendMealPlan(ctx, "день"));
   registerMenuAction("menu:quality", sendDietQuality);
   registerMenuAction("menu:next_meal", promptNextMeal);
 
