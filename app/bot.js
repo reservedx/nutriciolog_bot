@@ -93,13 +93,11 @@ function createPostMealUpdateMenu() {
 
 function createDayMenu() {
   return Markup.inlineKeyboard([
-    [Markup.button.callback("Сводка за сегодня", "menu:today")],
-    [Markup.button.callback("Разбор питания", "menu:quality")],
-    [Markup.button.callback("Моя норма КБЖУ", "menu:targets")],
+    [Markup.button.callback("Сводка за сегодня", "menu:today"), Markup.button.callback("Разбор питания", "menu:quality")],
+    [Markup.button.callback("Моя норма КБЖУ", "menu:targets"), Markup.button.callback("Меню на день", "menu:mealplan")],
     [Markup.button.callback("Что я могу съесть дальше?", "menu:next_meal")],
     [Markup.button.callback("Обновить вес", "menu:weight"), Markup.button.callback("Журнал веса", "menu:weight_history")],
-    [Markup.button.callback("Добавить замеры", "menu:measure")],
-    [Markup.button.callback("Прогресс", "menu:progress")],
+    [Markup.button.callback("Добавить замеры", "menu:measure"), Markup.button.callback("Прогресс", "menu:progress")],
     [Markup.button.callback("В меню", "menu:home")]
   ]);
 }
@@ -172,7 +170,6 @@ function createNextMealResultMenu(nextMealType, style) {
 
 function createMoreMenu(webAppUrl) {
   return Markup.inlineKeyboard([
-    [Markup.button.callback("Меню на день", "menu:mealplan")],
     [Markup.button.callback("История записей", "menu:history")],
     [Markup.button.callback("Задать вопрос нутрициологу", "menu:ask")],
     [Markup.button.callback("Напоминания", "menu:notifications")],
@@ -1017,6 +1014,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
         "",
         "Сводка за сегодня: сколько уже съедено калорий и БЖУ.",
         "Разбор питания: короткая оценка качества дневника.",
+        "Меню на день: готовый рацион под твой профиль.",
         "Вес: чтобы добавить новое значение.",
         "Журнал веса: чтобы посмотреть все последние записи.",
         "Замеры: чтобы регулярно вести журнал объемов.",
@@ -1032,7 +1030,6 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
       [
         "Здесь дополнительные полезные функции:",
         "",
-        "Меню на день: готовый рацион под твой профиль.",
         "История записей: последние приемы пищи и возможность удалить лишнее.",
         "Задать вопрос нутрициологу: можно спросить про питание, белок, дефицит, продукты и т.д.",
         "Напоминания: настрой время напоминаний про завтрак, обед и ужин.",
