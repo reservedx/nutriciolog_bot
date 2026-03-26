@@ -38,6 +38,20 @@ function round(value) {
   return Math.round(Number(value) || 0);
 }
 
+function parseDbDate(value) {
+  if (!value) return null;
+  const normalized = String(value).trim().replace(" ", "T");
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getDaysSince(value) {
+  const parsed = parseDbDate(value);
+  if (!parsed) return null;
+  const diffMs = Date.now() - parsed.getTime();
+  return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+}
+
 function createHomeMenu(profile) {
   const rows = [];
 
@@ -720,10 +734,59 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
       .filter(Boolean)
   );
 
+  const telegramMenuCommands = [
+    { command: "start", description: "Открыть главное меню" },
+    { command: "meal", description: "Добавить еду" },
+    { command: "today", description: "Мой день" },
+    { command: "progress", description: "Прогресс" },
+    { command: "weight", description: "Обновить вес" },
+    { command: "measure", description: "Добавить замеры" },
+    { command: "targets", description: "Моя норма КБЖУ" },
+    { command: "notifications", description: "Напоминания" },
+    { command: "ask", description: "Вопрос нутрициологу" }
+  ];
+
   function getProfileAndAccess(ctx) {
     const profile = databaseService.ensureUser(ctx.from);
     const access = databaseService.getAccessStatus(ctx.from.id);
     return { profile, access };
+  }
+
+  function getHomeSuggestions(ctx) {
+    const profile = databaseService.ensureUser(ctx.from);
+    const today = databaseService.getTodaySummary(ctx.from.id);
+    const weightHistory = databaseService.getWeightLogs(ctx.from.id, 1);
+    const measurementHistory = databaseService.getMeasurementLogs(ctx.from.id, 1);
+    const tips = [];
+
+    if (!profile.daily_calories) {
+      tips.push("Лучший первый шаг сейчас: нажми «Начать» и настрой профиль — я рассчитаю твою норму КБЖУ.");
+      return tips;
+    }
+
+    if (!today?.meals?.length) {
+      tips.push("Лучшее действие сейчас: добавь первый прием пищи за сегодня — фото или описание блюда.");
+    } else {
+      const remainingCalories = Math.max(0, round(Number(profile.daily_calories || 0) - Number(today.totals?.calories || 0)));
+      const remainingProtein = Math.max(0, round(Number(profile.daily_protein || 0) - Number(today.totals?.protein || 0)));
+      tips.push(`На сегодня у тебя осталось примерно ${remainingCalories} ккал и ${remainingProtein} г белка.`);
+      tips.push("Зайди в «Мой кабинет», если хочешь посмотреть сводку или подобрать следующий прием пищи.");
+    }
+
+    const lastWeightLog = weightHistory?.logs?.[0];
+    const daysSinceWeight = getDaysSince(lastWeightLog?.created_at);
+    if (daysSinceWeight === null) {
+      tips.push("Чтобы видеть прогресс, добавь первый вес в «Моем кабинете».");
+    } else if (daysSinceWeight >= 7) {
+      tips.push(`Вес давно не обновлялся: прошло уже ${daysSinceWeight} дн. Добавь новое значение, чтобы прогресс был точнее.`);
+    }
+
+    const lastMeasurementLog = measurementHistory?.logs?.[0];
+    if (!lastMeasurementLog) {
+      tips.push("Замеры пока не заполнены. Они помогут лучше видеть изменения тела, даже если вес стоит.");
+    }
+
+    return tips.slice(0, 3);
   }
 
   async function requireActiveAccess(ctx) {
@@ -822,7 +885,8 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
   }
 
   async function showHome(ctx) {
-    const { profile, access } = getProfileAndAccess(ctx);
+    const { profile } = getProfileAndAccess(ctx);
+    const smartTips = getHomeSuggestions(ctx);
     return sendScreen(
       ctx,
       [
@@ -848,7 +912,10 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
         "",
         "👇 Начни прямо сейчас — добавь свою первую еду",
         "",
-        `Текущий профиль: ${profile.display_name}`
+        `Текущий профиль: ${profile.display_name}`,
+        "",
+        "Сейчас для тебя полезно:",
+        ...smartTips.map((tip) => `• ${tip}`)
       ].join("\n"),
       createHomeMenu(profile)
     );
@@ -2025,6 +2092,18 @@ async function promptNextMeal(ctx) {
       createHomeMenu(databaseService.ensureUser(ctx.from))
     )
   );
+
+  bot.telegram
+    .setMyCommands(telegramMenuCommands)
+    .catch((error) => console.error("Failed to set Telegram commands:", error));
+
+  bot.telegram
+    .setChatMenuButton({
+      menu_button: {
+        type: "commands"
+      }
+    })
+    .catch((error) => console.error("Failed to set Telegram chat menu button:", error));
 
   return bot;
 }
