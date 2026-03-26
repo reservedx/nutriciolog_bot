@@ -691,6 +691,24 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
       await handler(ctx);
     });
   }
+
+  async function sendScreen(ctx, text, markup) {
+    const extra = markup || undefined;
+
+    if (ctx.callbackQuery?.message) {
+      try {
+        return await ctx.editMessageText(text, extra);
+      } catch (error) {
+        const message = String(error?.response?.description || error?.message || "").toLowerCase();
+        if (message.includes("message is not modified") || message.includes("can't be edited")) {
+          return ctx.reply(text, extra);
+        }
+        throw error;
+      }
+    }
+
+    return ctx.reply(text, extra);
+  }
   const adminIds = new Set(
     String(process.env.TELEGRAM_ADMIN_IDS || process.env.TELEGRAM_ADMIN_ID || "742896049")
       .split(",")
@@ -710,7 +728,8 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
       return access;
     }
 
-    await ctx.reply(
+    await sendScreen(
+      ctx,
       [
         "Доступ к боту приостановлен.",
         "Полный доступ к анализу еды, дневнику, меню и вопросам стоит 300 ₽ в месяц.",
@@ -773,11 +792,11 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     databaseService.ensureUser(ctx.from);
 
     if (!isAdmin(ctx)) {
-      return ctx.reply("Эта команда доступна только владельцу.");
+      return sendScreen(ctx, "Эта команда доступна только владельцу.");
     }
 
     const stats = databaseService.getAdminStats();
-    return ctx.reply(formatAdminStats(stats), createHomeMenu(databaseService.getUserByTelegramId(ctx.from.id)));
+    return sendScreen(ctx, formatAdminStats(stats), createHomeMenu(databaseService.getUserByTelegramId(ctx.from.id)));
   }
 
   async function createSubscriptionInvoiceLink(ctx) {
@@ -800,7 +819,8 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
 
   async function showHome(ctx) {
     const { profile, access } = getProfileAndAccess(ctx);
-    return ctx.reply(
+    return sendScreen(
+      ctx,
       [
         "Привет! 👋",
         "Я — твой персональный нутрициолог в Telegram 🥑",
@@ -832,7 +852,8 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
 
   async function showStartGuide(ctx) {
     const profile = databaseService.ensureUser(ctx.from);
-    return ctx.reply(
+    return sendScreen(
+      ctx,
       [
         "С чего лучше начать:",
         "",
@@ -848,7 +869,8 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
   }
 
   async function showAddFoodGuide(ctx) {
-    return ctx.reply(
+    return sendScreen(
+      ctx,
       [
         "Как добавить еду:",
         "",
@@ -860,7 +882,8 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
   }
 
   async function showDayGuide(ctx) {
-    return ctx.reply(
+    return sendScreen(
+      ctx,
       [
         "Раздел «Мой кабинет» поможет быстро понять, что происходит сегодня.",
         "",
@@ -876,7 +899,8 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
   }
 
   async function showMoreGuide(ctx) {
-    return ctx.reply(
+    return sendScreen(
+      ctx,
       [
         "Здесь дополнительные полезные функции:",
         "",
@@ -892,7 +916,8 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
 
   async function showSubscription(ctx) {
     const { access } = getProfileAndAccess(ctx);
-    return ctx.reply(
+    return sendScreen(
+      ctx,
       [
         formatAccessStatus(access),
         "",
@@ -924,18 +949,18 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
 
   async function showProfile(ctx) {
     const { profile, access } = getProfileAndAccess(ctx);
-    return ctx.reply([formatProfile(profile), "", formatAccessStatus(access)].join("\n"), createStartMenu(profile));
+    return sendScreen(ctx, [formatProfile(profile), "", formatAccessStatus(access)].join("\n"), createStartMenu(profile));
   }
 
   async function showTargets(ctx) {
     const { profile } = getProfileAndAccess(ctx);
-    return ctx.reply(formatTargets(profile), createTargetsMenu());
+    return sendScreen(ctx, formatTargets(profile), createTargetsMenu());
   }
 
   async function showNotifications(ctx) {
     if (!(await requireActiveAccess(ctx))) return;
     const data = databaseService.getNotificationSettings(ctx.from.id);
-    return ctx.reply(formatNotifications(data?.settings), createNotificationsMenu(data?.settings));
+    return sendScreen(ctx, formatNotifications(data?.settings), createNotificationsMenu(data?.settings));
   }
 
   async function promptTargetsMode(ctx) {
@@ -943,7 +968,8 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     profileWizard.delete(String(ctx.from.id));
     pendingMode.set(String(ctx.from.id), "targets");
     pendingContext.delete(String(ctx.from.id));
-    return ctx.reply(
+    return sendScreen(
+      ctx,
       [
         "Отправь норму в формате:",
         "калории | белки | жиры | углеводы",
@@ -961,7 +987,8 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     pendingMode.set(String(ctx.from.id), "notifications_schedule");
     pendingContext.delete(String(ctx.from.id));
     const data = databaseService.getNotificationSettings(ctx.from.id);
-    return ctx.reply(
+    return sendScreen(
+      ctx,
       [
         formatNotifications(data?.settings),
         "",
@@ -981,7 +1008,8 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     const nextEnabled = Number(current?.settings?.enabled ?? 1) !== 1;
     const updated = databaseService.toggleNotificationSettings(ctx.from.id, nextEnabled);
 
-    return ctx.reply(
+    return sendScreen(
+      ctx,
       [
         nextEnabled ? "Напоминания включены." : "Напоминания выключены.",
         "",
@@ -994,38 +1022,39 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
   async function showToday(ctx) {
     if (!(await requireActiveAccess(ctx))) return;
     const summary = databaseService.getTodaySummary(ctx.from.id);
-    return ctx.reply(formatTodaySummary(summary), createDayMenu());
+    return sendScreen(ctx, formatTodaySummary(summary), createDayMenu());
   }
 
   async function showHistory(ctx) {
     if (!(await requireActiveAccess(ctx))) return;
     const history = databaseService.getRecentMeals(ctx.from.id, 10);
-    return ctx.reply(formatRecentMeals(history), createHistoryMenu(history?.meals || []));
+    return sendScreen(ctx, formatRecentMeals(history), createHistoryMenu(history?.meals || []));
   }
 
   async function showWeight(ctx) {
     if (!(await requireActiveAccess(ctx))) return;
     const history = databaseService.getWeightLogs(ctx.from.id, 10);
-    return ctx.reply(formatWeightHistory(history), createDayMenu());
+    return sendScreen(ctx, formatWeightHistory(history), createDayMenu());
   }
 
   async function showProgress(ctx) {
     if (!(await requireActiveAccess(ctx))) return;
     const weightProgress = databaseService.getWeightProgress(ctx.from.id);
     const measurementProgress = databaseService.getMeasurementProgress(ctx.from.id);
-    return ctx.reply(formatProgress(weightProgress, measurementProgress), createDayMenu());
+    return sendScreen(ctx, formatProgress(weightProgress, measurementProgress), createDayMenu());
   }
 
   async function showMeasure(ctx) {
     if (!(await requireActiveAccess(ctx))) return;
     const history = databaseService.getMeasurementLogs(ctx.from.id, 10);
-    return ctx.reply(formatMeasurementHistory(history), createDayMenu());
+    return sendScreen(ctx, formatMeasurementHistory(history), createDayMenu());
   }
 
 async function promptNextMeal(ctx) {
     if (!(await requireActiveAccess(ctx))) return;
     const summary = databaseService.getTodaySummary(ctx.from.id);
-    return ctx.reply(
+    return sendScreen(
+      ctx,
       [
         "Подберу, что ты еще можешь съесть сегодня, по твоему дневнику.",
         "",
@@ -1079,15 +1108,16 @@ async function promptNextMeal(ctx) {
     pendingMode.delete(String(ctx.from.id));
     profileWizard.set(String(ctx.from.id), { step: "display_name", draft: {} });
 
-    await ctx.reply(
+    return sendScreen(
+      ctx,
       [
         "Запускаю настройку профиля.",
-        "Я задам несколько простых вопросов и сам посчитаю ориентировочную норму калорий и БЖУ."
+        "Я задам несколько простых вопросов и сам посчитаю ориентировочную норму калорий и БЖУ.",
+        "",
+        createWizardPrompt("display_name", {})
       ].join("\n"),
       Markup.inlineKeyboard([[Markup.button.callback("Отмена", "menu:cancel_setup")]])
     );
-
-    return ctx.reply(createWizardPrompt("display_name", {}));
   }
 
   async function promptQuestionMode(ctx) {
@@ -1095,7 +1125,7 @@ async function promptNextMeal(ctx) {
     profileWizard.delete(String(ctx.from.id));
     pendingMode.set(String(ctx.from.id), "ask");
     pendingContext.delete(String(ctx.from.id));
-    return ctx.reply("Напиши свой вопрос по питанию. Например: «как добрать белок без протеина?»", createMoreMenu(webAppUrl));
+    return sendScreen(ctx, "Напиши свой вопрос по питанию. Например: «как добрать белок без протеина?»", createMoreMenu(webAppUrl));
   }
 
   async function promptMealTextMode(ctx) {
@@ -1103,7 +1133,7 @@ async function promptNextMeal(ctx) {
     profileWizard.delete(String(ctx.from.id));
     pendingMode.set(String(ctx.from.id), "meal_text");
     pendingContext.delete(String(ctx.from.id));
-    return ctx.reply("Опиши, что ты съел. Например: «съел курицу, рис и салат».", createAddFoodMenu());
+    return sendScreen(ctx, "Опиши, что ты съел. Например: «съел курицу, рис и салат».", createAddFoodMenu());
   }
 
   async function promptLabelMode(ctx) {
@@ -1111,7 +1141,8 @@ async function promptNextMeal(ctx) {
     profileWizard.delete(String(ctx.from.id));
     pendingMode.set(String(ctx.from.id), "label_photo");
     pendingContext.delete(String(ctx.from.id));
-    return ctx.reply(
+    return sendScreen(
+      ctx,
       "Пришли фото этикетки или состава продукта, и я коротко разберу КБЖУ, состав и скажу, стоит ли покупать.",
       createAddFoodMenu()
     );
@@ -1122,7 +1153,7 @@ async function promptNextMeal(ctx) {
     profileWizard.delete(String(ctx.from.id));
     pendingMode.set(String(ctx.from.id), "weight");
     pendingContext.delete(String(ctx.from.id));
-    return ctx.reply("Отправь текущий вес числом в килограммах. Например: 76.4", createDayMenu());
+    return sendScreen(ctx, "Отправь текущий вес числом в килограммах. Например: 76.4", createDayMenu());
   }
 
   async function promptMeasurementMode(ctx) {
@@ -1131,7 +1162,8 @@ async function promptNextMeal(ctx) {
     pendingMode.set(String(ctx.from.id), "measurement");
     pendingContext.delete(String(ctx.from.id));
     const history = databaseService.getMeasurementLogs(ctx.from.id, 5);
-    return ctx.reply(
+    return sendScreen(
+      ctx,
       [
         formatMeasurementHistory(history),
         "",
