@@ -437,7 +437,8 @@ export function createWebServer({ port, databaseService, nutritionService, teleg
 
         const savedLog = databaseService.saveMeasurementLog(identifier, {
           waist: body.waist,
-          thigh: body.thigh,
+          chest: body.chest,
+          hips: body.hips ?? body.thigh,
           arm: body.arm,
           note: body.note || null
         });

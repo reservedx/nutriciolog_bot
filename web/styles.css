@@ -774,6 +774,10 @@ button:active {
   background: var(--cyan);
 }
 
+.dot-violet {
+  background: #c78bff;
+}
+
 .hidden {
   display: none !important;
 }

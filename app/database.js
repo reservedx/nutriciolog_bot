@@ -188,6 +188,8 @@ export async function createDatabaseService({ databasePath }) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
       waist REAL,
+      chest REAL,
+      hips REAL,
       thigh REAL,
       arm REAL,
       note TEXT,
@@ -260,6 +262,13 @@ export async function createDatabaseService({ databasePath }) {
   }
   if (!notificationColumns.some((column) => column.name === "dinner_time")) {
     db.exec("ALTER TABLE notification_settings ADD COLUMN dinner_time TEXT NOT NULL DEFAULT '18:00'");
+  }
+  const measurementColumns = getMany("PRAGMA table_info(measurement_logs)");
+  if (!measurementColumns.some((column) => column.name === "chest")) {
+    db.exec("ALTER TABLE measurement_logs ADD COLUMN chest REAL");
+  }
+  if (!measurementColumns.some((column) => column.name === "hips")) {
+    db.exec("ALTER TABLE measurement_logs ADD COLUMN hips REAL");
   }
   if (!notificationColumns.some((column) => column.name === "last_breakfast_sent_at")) {
     db.exec("ALTER TABLE notification_settings ADD COLUMN last_breakfast_sent_at TEXT");
@@ -715,8 +724,16 @@ export async function createDatabaseService({ databasePath }) {
       if (!user) return null;
 
       db.run(
-        `INSERT INTO measurement_logs (user_id, waist, thigh, arm, note) VALUES (?, ?, ?, ?, ?)`,
-        [user.id, measurement.waist ?? null, measurement.thigh ?? null, measurement.arm ?? null, measurement.note ?? null]
+        `INSERT INTO measurement_logs (user_id, waist, chest, hips, thigh, arm, note) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          user.id,
+          measurement.waist ?? null,
+          measurement.chest ?? null,
+          measurement.hips ?? measurement.thigh ?? null,
+          measurement.hips ?? measurement.thigh ?? null,
+          measurement.arm ?? null,
+          measurement.note ?? null
+        ]
       );
 
       const savedLog = getOne("SELECT * FROM measurement_logs WHERE id = last_insert_rowid()", []);
@@ -737,7 +754,11 @@ export async function createDatabaseService({ databasePath }) {
       const user = getUserByIdentifier(telegramUserId);
       if (!user) return null;
 
-      const logs = getMany(`SELECT * FROM measurement_logs WHERE user_id = ? ORDER BY datetime(created_at) DESC LIMIT ?`, [user.id, limit]);
+      const logs = getMany(`SELECT * FROM measurement_logs WHERE user_id = ? ORDER BY datetime(created_at) DESC LIMIT ?`, [user.id, limit]).map((log) => ({
+        ...log,
+        chest: log.chest ?? null,
+        hips: log.hips ?? log.thigh ?? null
+      }));
       console.log(`Measurement logs for user ${telegramUserId}: ${logs.length}`);
       return { user, logs };
     },
@@ -770,7 +791,8 @@ export async function createDatabaseService({ databasePath }) {
         latest,
         oldest,
         waistChange: delta("waist"),
-        thighChange: delta("thigh"),
+        chestChange: delta("chest"),
+        hipsChange: delta("hips"),
         armChange: delta("arm")
       };
     },
@@ -1070,7 +1092,8 @@ export async function createDatabaseService({ databasePath }) {
 
       const latestMeasurement = existingMeasurements[0] || {};
       const baseWaist = Number.isFinite(Number(latestMeasurement.waist)) ? Number(latestMeasurement.waist) : 84;
-      const baseThigh = Number.isFinite(Number(latestMeasurement.thigh)) ? Number(latestMeasurement.thigh) : 56;
+      const baseChest = Number.isFinite(Number(latestMeasurement.chest)) ? Number(latestMeasurement.chest) : 98;
+      const baseHips = Number.isFinite(Number(latestMeasurement.hips ?? latestMeasurement.thigh)) ? Number(latestMeasurement.hips ?? latestMeasurement.thigh) : 101;
       const baseArm = Number.isFinite(Number(latestMeasurement.arm)) ? Number(latestMeasurement.arm) : 32;
 
       if (existingMeasurements.length < 6) {
@@ -1079,11 +1102,13 @@ export async function createDatabaseService({ databasePath }) {
           const daysAgo = index * 6;
           const createdAt = toSqliteDateTime(new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000));
           db.run(
-            "INSERT INTO measurement_logs (user_id, waist, thigh, arm, note, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO measurement_logs (user_id, waist, chest, hips, thigh, arm, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             [
               user.id,
               Number((baseWaist - index * 0.4).toFixed(1)),
-              Number((baseThigh - index * 0.15).toFixed(1)),
+              Number((baseChest - index * 0.2).toFixed(1)),
+              Number((baseHips - index * 0.3).toFixed(1)),
+              Number((baseHips - index * 0.3).toFixed(1)),
               Number((baseArm - index * 0.05).toFixed(1)),
               "demo history",
               createdAt

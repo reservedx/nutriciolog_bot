@@ -51,7 +51,8 @@ const el = {
   loadMealPlan: $("#loadMealPlan"),
   weightValue: $("#weightValue"),
   waistValue: $("#waistValue"),
-  thighValue: $("#thighValue"),
+  chestValue: $("#chestValue"),
+  hipsValue: $("#hipsValue"),
   armValue: $("#armValue"),
   mealDescription: $("#mealDescription"),
   mealType: $("#mealType"),
@@ -117,7 +118,7 @@ function iconFor(label) {
   if (value.includes("проф")) return "profile";
   if (value.includes("сегодня") || value.includes("кбжу")) return "today";
   if (value.includes("вес")) return "weight";
-  if (value.includes("замер") || value.includes("талия") || value.includes("нога") || value.includes("рука")) return "measure";
+  if (value.includes("замер") || value.includes("талия") || value.includes("груд") || value.includes("бедр") || value.includes("рука")) return "measure";
   if (value.includes("калор")) return "calories";
   if (value.includes("бел")) return "protein";
   if (value.includes("польз")) return "users";
@@ -343,10 +344,11 @@ function multiLineChart(node, logs, rangeText) {
     .map((log) => ({
       ...log,
       waist: Number(log.waist),
-      thigh: Number(log.thigh),
+      chest: Number(log.chest),
+      hips: Number(log.hips ?? log.thigh),
       arm: Number(log.arm)
     }))
-    .filter((log) => [log.waist, log.thigh, log.arm].some((value) => Number.isFinite(value)));
+    .filter((log) => [log.waist, log.chest, log.hips, log.arm].some((value) => Number.isFinite(value)));
 
   if (!points.length) {
     return emptyChart(node, "Замеров пока недостаточно для графика.");
@@ -354,13 +356,14 @@ function multiLineChart(node, logs, rangeText) {
 
   const width = 760;
   const height = 240;
-  const allValues = points.flatMap((point) => [point.waist, point.thigh, point.arm]).filter((value) => Number.isFinite(value));
+  const allValues = points.flatMap((point) => [point.waist, point.chest, point.hips, point.arm]).filter((value) => Number.isFinite(value));
   const min = Math.min(...allValues);
   const max = Math.max(...allValues);
   const series = [
     ["waist", "#25d0a5"],
-    ["thigh", "#f0bc66"],
-    ["arm", "#56b6ff"]
+    ["chest", "#f0bc66"],
+    ["hips", "#56b6ff"],
+    ["arm", "#c78bff"]
   ];
   const grid = [0, 0.25, 0.5, 0.75, 1]
     .map((ratio) => `<line x1="0" y1="${(height * ratio).toFixed(2)}" x2="${width}" y2="${(height * ratio).toFixed(2)}" stroke="rgba(255,255,255,0.07)" stroke-width="1" />`)
@@ -440,8 +443,8 @@ function renderSummary(dashboard) {
     ),
     summaryCard(
       "Последние замеры",
-      measurement ? `${measurement.waist ?? "-"} / ${measurement.thigh ?? "-"} / ${measurement.arm ?? "-"}` : "—",
-      measurement ? "талия / нога / рука" : "нет записей"
+      measurement ? `${measurement.waist ?? "-"} / ${measurement.chest ?? "-"} / ${measurement.hips ?? measurement.thigh ?? "-"} / ${measurement.arm ?? "-"}` : "—",
+      measurement ? "талия / грудь / бедра / рука" : "нет записей"
     )
   ].forEach((card) => el.summaryGrid.append(card));
 }
@@ -517,11 +520,15 @@ function renderProgress(weightLogs, measurementLogs) {
 
   if (latestMeasurement && earliestMeasurement) {
     const waist = latestMeasurement.waist !== null && earliestMeasurement.waist !== null ? Number(latestMeasurement.waist) - Number(earliestMeasurement.waist) : null;
-    const thigh = latestMeasurement.thigh !== null && earliestMeasurement.thigh !== null ? Number(latestMeasurement.thigh) - Number(earliestMeasurement.thigh) : null;
+    const chest = latestMeasurement.chest !== null && earliestMeasurement.chest !== null ? Number(latestMeasurement.chest) - Number(earliestMeasurement.chest) : null;
+    const hips = (latestMeasurement.hips ?? latestMeasurement.thigh) !== null && (earliestMeasurement.hips ?? earliestMeasurement.thigh) !== null
+      ? Number(latestMeasurement.hips ?? latestMeasurement.thigh) - Number(earliestMeasurement.hips ?? earliestMeasurement.thigh)
+      : null;
     const arm = latestMeasurement.arm !== null && earliestMeasurement.arm !== null ? Number(latestMeasurement.arm) - Number(earliestMeasurement.arm) : null;
     items.push(metric("Талия", waist === null ? "нет данных" : fmtSigned(waist, " см")));
-    items.push(metric("Нога", thigh === null ? "нет данных" : fmtSigned(thigh, " см")));
-    items.push(metric("Рука", arm === null ? "нет данных" : fmtSigned(arm, " см")));
+    items.push(metric("Грудь", chest === null ? "нет данных" : fmtSigned(chest, " см")));
+    items.push(metric("Бедра", hips === null ? "нет данных" : fmtSigned(hips, " см")));
+    items.push(metric("Обхват руки", arm === null ? "нет данных" : fmtSigned(arm, " см")));
   } else {
     items.push(metric("Замеры", "Пока нет динамики"));
   }
@@ -584,7 +591,7 @@ function renderTimeline(weightLogs, measurementLogs) {
   measurementLogs.forEach((log) =>
     items.push({
       date: log.created_at,
-      title: `Замеры: талия ${log.waist ?? "-"} · нога ${log.thigh ?? "-"} · рука ${log.arm ?? "-"}`,
+      title: `Замеры: талия ${log.waist ?? "-"} · грудь ${log.chest ?? "-"} · бедра ${log.hips ?? log.thigh ?? "-"} · рука ${log.arm ?? "-"}`,
       subtitle: fmtDateLong(log.created_at)
     })
   );
@@ -633,7 +640,7 @@ function renderMeasurementLogs(logs) {
   fill(
     el.measurementBlock,
     logs.length
-      ? logs.slice(0, 12).map((log) => listItem(`${fmtDateLong(log.created_at)} — талия ${log.waist ?? "-"} · нога ${log.thigh ?? "-"} · рука ${log.arm ?? "-"}`, log.note || ""))
+      ? logs.slice(0, 12).map((log) => listItem(`${fmtDateLong(log.created_at)} — талия ${log.waist ?? "-"} · грудь ${log.chest ?? "-"} · бедра ${log.hips ?? log.thigh ?? "-"} · рука ${log.arm ?? "-"}`, log.note || ""))
       : [listItem("Журнал замеров пока пуст")]
   );
 }
@@ -852,7 +859,8 @@ async function submitMeasurements(event) {
       method: "POST",
       body: JSON.stringify({
         waist: el.waistValue.value || null,
-        thigh: el.thighValue.value || null,
+        chest: el.chestValue.value || null,
+        hips: el.hipsValue.value || null,
         arm: el.armValue.value || null
       })
     });

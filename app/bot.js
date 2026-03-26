@@ -476,7 +476,7 @@ function formatWeightProgress(progress) {
 
 function formatMeasurementHistory(history) {
   if (!history || history.logs.length === 0) {
-    return "Журнал замеров пока пустой. Нажми «Замеры» и отправь, например: талия 82, нога 56, рука 31";
+    return "Журнал замеров пока пустой. Нажми «Добавить замеры» и отправь, например: талия 82, грудь 98, бедра 101, рука 31";
   }
 
   return [
@@ -484,8 +484,9 @@ function formatMeasurementHistory(history) {
     ...history.logs.map((log) => {
       const parts = [];
       if (log.waist != null) parts.push(`талия ${Number(log.waist).toFixed(1)} см`);
-      if (log.thigh != null) parts.push(`нога ${Number(log.thigh).toFixed(1)} см`);
-      if (log.arm != null) parts.push(`рука ${Number(log.arm).toFixed(1)} см`);
+      if (log.chest != null) parts.push(`грудь ${Number(log.chest).toFixed(1)} см`);
+      if ((log.hips ?? log.thigh) != null) parts.push(`бедра ${Number(log.hips ?? log.thigh).toFixed(1)} см`);
+      if (log.arm != null) parts.push(`обхват руки ${Number(log.arm).toFixed(1)} см`);
       return `${formatJournalDate(log.created_at)} — ${parts.join(", ")}${log.note ? ` (${log.note})` : ""}`;
     })
   ].join("\n");
@@ -516,8 +517,9 @@ function formatProgress(weightProgress, measurementProgress) {
     const oldest = measurementProgress.oldest;
     const measurementLines = [
       { label: "Талия", key: "waist" },
-      { label: "Нога", key: "thigh" },
-      { label: "Рука", key: "arm" }
+      { label: "Грудь", key: "chest" },
+      { label: "Бедра", key: "hips" },
+      { label: "Обхват руки", key: "arm" }
     ];
 
     let hasAnyMeasurement = false;
@@ -667,8 +669,9 @@ function parseMeasurementText(text) {
   const normalized = text.toLowerCase().replace(/ё/g, "е");
   const patterns = [
     { key: "waist", aliases: ["талия", "талию", "waist"] },
-    { key: "thigh", aliases: ["нога", "нога", "бедро", "бедра", "бедро/нога", "thigh"] },
-    { key: "arm", aliases: ["рука", "руку", "бицепс", "предплечье", "arm"] }
+    { key: "chest", aliases: ["грудь", "груди", "chest"] },
+    { key: "hips", aliases: ["бедра", "бедро", "бедер", "hips", "hip"] },
+    { key: "arm", aliases: ["рука", "руку", "обхват руки", "бицепс", "предплечье", "arm"] }
   ];
 
   const result = {};
@@ -790,7 +793,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
 
     const lastMeasurementLog = measurementHistory?.logs?.[0];
     if (!lastMeasurementLog) {
-      tips.push("Замеры пока не заполнены. Они помогут лучше видеть изменения тела, даже если вес стоит.");
+      tips.push("Замеры пока не заполнены. Добавь талию, грудь, бедра и обхват руки, чтобы лучше видеть изменения тела.");
     }
 
     return tips.slice(0, 3);
@@ -1241,7 +1244,7 @@ async function promptNextMeal(ctx) {
       [
         formatMeasurementHistory(history),
         "",
-        "Чтобы добавить новые замеры, отправь одним сообщением. Пример: талия 82, нога 56, рука 31"
+        "Чтобы добавить новые замеры, отправь одним сообщением. Пример: талия 82, грудь 98, бедра 101, рука 31"
       ].join("\n"),
       createDayMenu()
     );
@@ -1525,8 +1528,8 @@ async function promptNextMeal(ctx) {
     if (!(await requireActiveAccess(ctx))) return;
 
     const measurement = parseMeasurementText(payload);
-    if (!measurement.waist && !measurement.thigh && !measurement.arm) {
-      return ctx.reply("Не смог понять замеры. Пример: `/measure талия 82, нога 56, рука 31`", createDayMenu());
+    if (!measurement.waist && !measurement.chest && !measurement.hips && !measurement.arm) {
+      return ctx.reply("Не смог понять замеры. Пример: `/measure талия 82, грудь 98, бедра 101, рука 31`", createDayMenu());
     }
 
     const log = databaseService.saveMeasurementLog(ctx.from.id, measurement);
@@ -1967,9 +1970,9 @@ async function promptNextMeal(ctx) {
       pendingMode.delete(String(ctx.from.id));
       pendingContext.delete(String(ctx.from.id));
       const measurement = parseMeasurementText(ctx.message.text.trim());
-      if (!measurement.waist && !measurement.thigh && !measurement.arm) {
+      if (!measurement.waist && !measurement.chest && !measurement.hips && !measurement.arm) {
         return ctx.reply(
-          "Не смог разобрать замеры. Напиши, например: талия 82, нога 56, рука 31",
+          "Не смог разобрать замеры. Напиши, например: талия 82, грудь 98, бедра 101, рука 31",
           createDayMenu()
         );
       }
