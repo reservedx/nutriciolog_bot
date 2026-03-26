@@ -84,6 +84,13 @@ function createAddFoodMenu() {
   ]);
 }
 
+function createPostMealUpdateMenu() {
+  return Markup.inlineKeyboard([
+    [Markup.button.callback("Фото еды", "guide:add_food_photo"), Markup.button.callback("Текстом", "menu:meal_text")],
+    [Markup.button.callback("Мой кабинет", "guide:day")]
+  ]);
+}
+
 function createDayMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("Сводка за сегодня", "menu:today")],
@@ -1772,7 +1779,7 @@ async function promptNextMeal(ctx) {
     }
 
     await safeAnswerCbQuery(ctx, `Тип: ${mealType}`);
-    await ctx.reply(`Тип приема пищи обновлен: ${mealType}.`, createAddFoodMenu());
+    await ctx.reply(`Тип приема пищи обновлен: ${mealType}.`, createPostMealUpdateMenu());
   });
 
   bot.action(/mealfix:(\d+)/, async (ctx) => {
