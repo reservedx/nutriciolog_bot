@@ -1,4 +1,5 @@
 ﻿import OpenAI from "openai";
+import fs from "node:fs";
 
 const mealSchema = {
   type: "object",
@@ -129,6 +130,18 @@ export function createNutritionService({ apiKey, model }) {
   const client = new OpenAI({ apiKey });
 
   return {
+    async transcribeFoodVoice(audioFilePath) {
+      const transcription = await client.audio.transcriptions.create({
+        file: fs.createReadStream(audioFilePath),
+        model: "gpt-4o-mini-transcribe",
+        prompt:
+          "Пользователь голосом описывает, что съел. Сохрани названия продуктов, порции и важные уточнения. Верни только распознанный текст на русском языке.",
+        response_format: "json"
+      });
+
+      return String(transcription.text || "").trim();
+    },
+
     async analyzeMealImage(imageUrl, clarification = "") {
       const result = await client.responses.parse({
         model,

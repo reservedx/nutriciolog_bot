@@ -1,5 +1,8 @@
 ﻿import { Markup, Telegraf } from "telegraf";
 import { getTelegramFileUrl } from "./services/telegram.js";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 const goalOptions = {
   weight_loss: { label: "снижение веса", calorieFactor: 0.85, proteinPerKg: 1.8 },
@@ -78,8 +81,8 @@ function createStartMenu(profile) {
 
 function createAddFoodMenu() {
   return Markup.inlineKeyboard([
-    [Markup.button.callback("Фото еды", "guide:add_food_photo")],
-    [Markup.button.callback("Текстом", "menu:meal_text")],
+    [Markup.button.callback("Фото еды", "guide:add_food_photo"), Markup.button.callback("Текстом", "menu:meal_text")],
+    [Markup.button.callback("Записать голосом", "guide:add_food_voice")],
     [Markup.button.callback("В меню", "menu:home")]
   ]);
 }
@@ -87,6 +90,7 @@ function createAddFoodMenu() {
 function createPostMealUpdateMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("Фото еды", "guide:add_food_photo"), Markup.button.callback("Текстом", "menu:meal_text")],
+    [Markup.button.callback("Записать голосом", "guide:add_food_voice")],
     [Markup.button.callback("Мой кабинет", "guide:day")]
   ]);
 }
@@ -712,6 +716,26 @@ function parseMeasurementText(text) {
   return result;
 }
 
+function getAudioFileExtension(message) {
+  const fileName = message?.audio?.file_name || "";
+  const mimeType = message?.audio?.mime_type || "";
+
+  if (message?.voice?.file_id) {
+    return ".ogg";
+  }
+
+  const fileMatch = fileName.match(/\.[a-z0-9]+$/i);
+  if (fileMatch) {
+    return fileMatch[0].toLowerCase();
+  }
+
+  if (mimeType.includes("mpeg")) return ".mp3";
+  if (mimeType.includes("mp4") || mimeType.includes("m4a")) return ".m4a";
+  if (mimeType.includes("ogg")) return ".ogg";
+  if (mimeType.includes("wav")) return ".wav";
+  return ".mp3";
+}
+
 export function createBot({ telegramBotToken, nutritionService, databaseService, billingConfig }) {
   const bot = new Telegraf(telegramBotToken);
   const profileWizard = new Map();
@@ -888,6 +912,47 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     }
   }
 
+  async function promptVoiceMealMode(ctx) {
+    if (!(await requireActiveAccess(ctx))) return;
+    profileWizard.delete(String(ctx.from.id));
+    pendingMode.set(String(ctx.from.id), "meal_voice");
+    pendingContext.delete(String(ctx.from.id));
+    return sendScreen(
+      ctx,
+      [
+        "Запиши голосовое сообщение и коротко скажи, что ты съел.",
+        "",
+        "Например: «На завтрак съел омлет из 3 яиц, два тоста и кофе с молоком».",
+        "Чем точнее описание порций и продуктов, тем точнее получится КБЖУ."
+      ].join("\n"),
+      createAddFoodMenu()
+    );
+  }
+
+  async function transcribeVoiceMessage(ctx, message) {
+    const fileId = message?.voice?.file_id || message?.audio?.file_id;
+    if (!fileId) {
+      throw new Error("Missing audio file_id");
+    }
+
+    const extension = getAudioFileExtension(message);
+    const audioUrl = await getTelegramFileUrl(telegramBotToken, fileId);
+    const response = await fetch(audioUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to download voice file: ${response.status}`);
+    }
+
+    const audioBuffer = Buffer.from(await response.arrayBuffer());
+    const tempFilePath = path.join(os.tmpdir(), `nutrition-voice-${ctx.from.id}-${Date.now()}${extension}`);
+    await fs.writeFile(tempFilePath, audioBuffer);
+
+    try {
+      return await nutritionService.transcribeFoodVoice(tempFilePath);
+    } finally {
+      await fs.unlink(tempFilePath).catch(() => {});
+    }
+  }
+
   async function showAdminStats(ctx) {
     databaseService.ensureUser(ctx.from);
 
@@ -1000,7 +1065,8 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
         "Как добавить еду:",
         "",
         "Фото еды: если хочешь, чтобы бот сам распознал блюдо по изображению.",
-        "Текстом: если проще написать, что ты съел, например «курица, рис и салат»."
+        "Текстом: если проще написать, что ты съел, например «курица, рис и салат».",
+        "Голосом: если удобнее быстро наговорить состав блюда и порции."
       ].join("\n"),
       createAddFoodMenu()
     );
@@ -1688,6 +1754,10 @@ async function promptNextMeal(ctx) {
       createAddFoodMenu()
     );
   });
+  bot.action("guide:add_food_voice", async (ctx) => {
+    await safeAnswerCbQuery(ctx);
+    await promptVoiceMealMode(ctx);
+  });
   bot.action("guide:label_photo", async (ctx) => {
     await safeAnswerCbQuery(ctx);
     await promptLabelMode(ctx);
@@ -1960,6 +2030,43 @@ async function promptNextMeal(ctx) {
     } catch (error) {
       console.error("Failed to analyze meal photo:", error);
       await ctx.reply("Не получилось обработать фото. Попробуй отправить более четкий снимок или чуть позже повторить попытку.", createAddFoodMenu());
+    }
+  });
+
+  bot.on(["voice", "audio"], async (ctx) => {
+    if (!(await requireActiveAccess(ctx))) return;
+
+    const currentMode = pendingMode.get(String(ctx.from.id));
+    if (currentMode !== "meal_voice") {
+      return ctx.reply(
+        "Если хочешь добавить еду голосом, сначала нажми «Записать голосом», а потом отправь голосовое сообщение.",
+        createAddFoodMenu()
+      );
+    }
+
+    pendingMode.delete(String(ctx.from.id));
+    pendingContext.delete(String(ctx.from.id));
+
+    try {
+      await ctx.reply("Слушаю голосовое, распознаю текст и считаю КБЖУ...");
+      const transcription = await withGracefulFailure(
+        ctx,
+        () => transcribeVoiceMessage(ctx, ctx.message),
+        createAddFoodMenu()
+      );
+      if (!transcription) {
+        return;
+      }
+
+      if (!transcription.trim()) {
+        return ctx.reply("Не удалось распознать текст в голосовом. Попробуй записать еще раз чуть четче.", createAddFoodMenu());
+      }
+
+      await ctx.reply(`Вот что я распознал:\n${transcription}`);
+      return saveTextMeal(ctx, transcription);
+    } catch (error) {
+      console.error("Failed to process meal voice message:", error);
+      return ctx.reply("Не получилось обработать голосовое сообщение. Попробуй еще раз или опиши еду текстом.", createAddFoodMenu());
     }
   });
 
