@@ -174,6 +174,7 @@ function setStatus(text, tone = "muted") {
 function setAuthUi(isAuthorized) {
   el.logoutButton.classList.toggle("hidden", !isAuthorized);
   el.seedDemoButton.classList.toggle("hidden", !isAuthorized);
+  document.body.dataset.authorized = isAuthorized ? "true" : "false";
 }
 
 function setAdminUi(isAdmin) {
