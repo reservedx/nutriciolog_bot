@@ -14,6 +14,7 @@ const el = {
   telegramUserId: $("#telegramUserId"),
   loadDashboard: $("#loadDashboard"),
   logoutButton: $("#logoutButton"),
+  dashboardLogoutButton: $("#dashboardLogoutButton"),
   seedDemoButton: $("#seedDemoButton"),
   dashboard: $("#dashboard"),
   summaryGrid: $("#summaryGrid"),
@@ -67,7 +68,8 @@ const el = {
   adminActiveUsersBlock: $("#adminActiveUsersBlock"),
   tabButtons: $$(".tab-button"),
   tabPanels: $$(".tab-panel"),
-  rangeButtons: $$(".range-button")
+  rangeButtons: $$(".range-button"),
+  quickActions: $$(".quick-action")
 };
 
 const fmtDate = (value) =>
@@ -173,6 +175,7 @@ function setStatus(text, tone = "muted") {
 
 function setAuthUi(isAuthorized) {
   el.logoutButton.classList.toggle("hidden", !isAuthorized);
+  el.dashboardLogoutButton.classList.toggle("hidden", !isAuthorized);
   el.seedDemoButton.classList.toggle("hidden", !isAuthorized);
   document.body.dataset.authorized = isAuthorized ? "true" : "false";
 }
@@ -193,6 +196,40 @@ function setActiveTab(tabName) {
   state.activeTab = tabName;
   el.tabButtons.forEach((button) => button.classList.toggle("active", button.dataset.tab === tabName));
   el.tabPanels.forEach((panel) => panel.classList.toggle("active", panel.dataset.panel === tabName));
+}
+
+function focusElement(selector) {
+  const node = document.querySelector(selector);
+  if (!node) return;
+  node.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (typeof node.focus === "function") {
+    window.setTimeout(() => node.focus(), 220);
+  }
+}
+
+function handleQuickAction(action) {
+  if (action === "add-meal") {
+    setActiveTab("nutrition");
+    focusElement("#mealDescription");
+    return;
+  }
+
+  if (action === "add-weight") {
+    setActiveTab("progress");
+    focusElement("#weightValue");
+    return;
+  }
+
+  if (action === "add-measurements") {
+    setActiveTab("progress");
+    focusElement("#waistValue");
+    return;
+  }
+
+  if (action === "open-plan") {
+    setActiveTab("assistant");
+    focusElement("#loadMealPlan");
+  }
 }
 
 function setChartRange(days) {
@@ -989,6 +1026,7 @@ async function restoreSession() {
 
 el.loadDashboard.addEventListener("click", () => loadDashboardByFallback().catch((error) => setStatus(error.message, "error")));
 el.logoutButton.addEventListener("click", () => logout().catch((error) => setStatus(error.message, "error")));
+el.dashboardLogoutButton.addEventListener("click", () => logout().catch((error) => setStatus(error.message, "error")));
 el.seedDemoButton.addEventListener("click", () => seedDemoData().catch((error) => setStatus(error.message, "error")));
 el.weightForm.addEventListener("submit", submitWeight);
 el.measurementForm.addEventListener("submit", submitMeasurements);
@@ -1003,6 +1041,7 @@ el.telegramUserId.addEventListener("keydown", (event) => {
 });
 el.tabButtons.forEach((button) => button.addEventListener("click", () => setActiveTab(button.dataset.tab)));
 el.rangeButtons.forEach((button) => button.addEventListener("click", () => setChartRange(Number(button.dataset.range))));
+el.quickActions.forEach((button) => button.addEventListener("click", () => handleQuickAction(button.dataset.action)));
 
 bootstrapTelegramLogin();
 renderGhostSpark(el.miniWeightChart, "#25d0a5");
