@@ -229,9 +229,12 @@ export async function createDatabaseService({ databasePath }) {
       breakfast_time TEXT NOT NULL DEFAULT '10:00',
       lunch_time TEXT NOT NULL DEFAULT '13:00',
       dinner_time TEXT NOT NULL DEFAULT '18:00',
+      profile_reminder_enabled INTEGER NOT NULL DEFAULT 1,
+      profile_reminder_time TEXT NOT NULL DEFAULT '11:00',
       last_breakfast_sent_at TEXT,
       last_lunch_sent_at TEXT,
       last_dinner_sent_at TEXT,
+      last_profile_reminder_sent_at TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id)
@@ -273,6 +276,12 @@ export async function createDatabaseService({ databasePath }) {
   if (!notificationColumns.some((column) => column.name === "dinner_time")) {
     db.exec("ALTER TABLE notification_settings ADD COLUMN dinner_time TEXT NOT NULL DEFAULT '18:00'");
   }
+  if (!notificationColumns.some((column) => column.name === "profile_reminder_enabled")) {
+    db.exec("ALTER TABLE notification_settings ADD COLUMN profile_reminder_enabled INTEGER NOT NULL DEFAULT 1");
+  }
+  if (!notificationColumns.some((column) => column.name === "profile_reminder_time")) {
+    db.exec("ALTER TABLE notification_settings ADD COLUMN profile_reminder_time TEXT NOT NULL DEFAULT '11:00'");
+  }
   const measurementColumns = getMany("PRAGMA table_info(measurement_logs)");
   if (!measurementColumns.some((column) => column.name === "chest")) {
     db.exec("ALTER TABLE measurement_logs ADD COLUMN chest REAL");
@@ -288,6 +297,9 @@ export async function createDatabaseService({ databasePath }) {
   }
   if (!notificationColumns.some((column) => column.name === "last_dinner_sent_at")) {
     db.exec("ALTER TABLE notification_settings ADD COLUMN last_dinner_sent_at TEXT");
+  }
+  if (!notificationColumns.some((column) => column.name === "last_profile_reminder_sent_at")) {
+    db.exec("ALTER TABLE notification_settings ADD COLUMN last_profile_reminder_sent_at TEXT");
   }
 
   db.run(
@@ -312,8 +324,10 @@ export async function createDatabaseService({ databasePath }) {
           breakfast_time,
           lunch_time,
           dinner_time,
+          profile_reminder_enabled,
+          profile_reminder_time,
           updated_at
-        ) VALUES (?, 1, '10:00', '13:00', '18:00', CURRENT_TIMESTAMP)
+        ) VALUES (?, 1, '10:00', '13:00', '18:00', 1, '11:00', CURRENT_TIMESTAMP)
         ON CONFLICT(user_id) DO NOTHING
       `,
       [userId]
@@ -545,7 +559,14 @@ export async function createDatabaseService({ databasePath }) {
         enabled: typeof updates.enabled === "boolean" ? (updates.enabled ? 1 : 0) : Number(current.enabled ?? 1),
         breakfast_time: isValidTimeString(updates.breakfast_time) ? updates.breakfast_time : current.breakfast_time || "10:00",
         lunch_time: isValidTimeString(updates.lunch_time) ? updates.lunch_time : current.lunch_time || "13:00",
-        dinner_time: isValidTimeString(updates.dinner_time) ? updates.dinner_time : current.dinner_time || "18:00"
+        dinner_time: isValidTimeString(updates.dinner_time) ? updates.dinner_time : current.dinner_time || "18:00",
+        profile_reminder_enabled:
+          typeof updates.profile_reminder_enabled === "boolean"
+            ? (updates.profile_reminder_enabled ? 1 : 0)
+            : Number(current.profile_reminder_enabled ?? 1),
+        profile_reminder_time: isValidTimeString(updates.profile_reminder_time)
+          ? updates.profile_reminder_time
+          : current.profile_reminder_time || "11:00"
       };
 
       db.run(
@@ -556,10 +577,20 @@ export async function createDatabaseService({ databasePath }) {
             breakfast_time = ?,
             lunch_time = ?,
             dinner_time = ?,
+            profile_reminder_enabled = ?,
+            profile_reminder_time = ?,
             updated_at = CURRENT_TIMESTAMP
           WHERE user_id = ?
         `,
-        [next.enabled, next.breakfast_time, next.lunch_time, next.dinner_time, user.id]
+        [
+          next.enabled,
+          next.breakfast_time,
+          next.lunch_time,
+          next.dinner_time,
+          next.profile_reminder_enabled,
+          next.profile_reminder_time,
+          user.id
+        ]
       );
 
       persist();
@@ -581,7 +612,9 @@ export async function createDatabaseService({ databasePath }) {
           SELECT
             notification_settings.*,
             users.telegram_user_id,
-            users.display_name
+            users.display_name,
+            users.goal,
+            users.daily_calories
           FROM notification_settings
           JOIN users ON users.id = notification_settings.user_id
           WHERE notification_settings.enabled = 1
@@ -607,6 +640,23 @@ export async function createDatabaseService({ databasePath }) {
       const due = [];
 
       for (const row of settingsRows) {
+        const profileIncomplete = !row.daily_calories || !row.goal;
+        const profileReminderTime = row.profile_reminder_time;
+        const profileReminderEnabled = Number(row.profile_reminder_enabled ?? 1) === 1;
+        const lastProfileReminderDate = parseSqliteDateTime(row.last_profile_reminder_sent_at);
+        const profileReminderSentToday =
+          lastProfileReminderDate && toLocalDateKey(lastProfileReminderDate, appTimeZone) === todayKey;
+
+        if (profileIncomplete && profileReminderEnabled && isValidTimeString(profileReminderTime) && !profileReminderSentToday && currentTime >= profileReminderTime) {
+          due.push({
+            userId: row.user_id,
+            telegramUserId: row.telegram_user_id,
+            displayName: row.display_name,
+            mealKey: "profile_setup",
+            scheduledTime: profileReminderTime
+          });
+        }
+
         const loggedMeals = new Set(
           getMany(
             `
@@ -658,7 +708,8 @@ export async function createDatabaseService({ databasePath }) {
       const columnMap = {
         breakfast: "last_breakfast_sent_at",
         lunch: "last_lunch_sent_at",
-        dinner: "last_dinner_sent_at"
+        dinner: "last_dinner_sent_at",
+        profile_setup: "last_profile_reminder_sent_at"
       };
       const column = columnMap[mealKey];
       if (!column) return false;
