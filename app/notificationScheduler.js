@@ -1,4 +1,4 @@
-const reminderMessages = {
+﻿const reminderMessages = {
   breakfast: "Доброе утро! Не забудь добавить свой завтрак.",
   lunch: "Напоминаю про обед. Добавь прием пищи, чтобы дневник был точнее.",
   dinner: "Время ужина. Если уже поел, добавь прием пищи в дневник.",
@@ -12,7 +12,10 @@ function buildReminderPayload(reminder) {
       text: reminderMessages.profile_setup,
       extra: {
         reply_markup: {
-          inline_keyboard: [[{ text: "Заполнить профиль", callback_data: "menu:setup" }]]
+          inline_keyboard: [
+            [{ text: "Заполнить профиль", callback_data: "menu:setup" }],
+            [{ text: "Отключить напоминания", callback_data: "menu:notifications_quick_disable" }]
+          ]
         }
       }
     };
@@ -24,7 +27,14 @@ function buildReminderPayload(reminder) {
       "",
       "Я сразу учту его в дневнике, КБЖУ и прогрессе за день."
     ].join("\n"),
-    extra: undefined
+    extra: {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "Добавить прием пищи", callback_data: "guide:add_food" }],
+          [{ text: "Отключить напоминания", callback_data: "menu:notifications_quick_disable" }]
+        ]
+      }
+    }
   };
 }
 

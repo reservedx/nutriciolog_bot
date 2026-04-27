@@ -1257,6 +1257,20 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     );
   }
 
+  async function quickDisableNotifications(ctx) {
+    if (!(await requireActiveAccess(ctx))) return;
+    const updated = databaseService.toggleNotificationSettings(ctx.from.id, false);
+    await safeAnswerCbQuery(ctx, "Напоминания выключены");
+    return ctx.reply(
+      [
+        "Напоминания выключены.",
+        "",
+        formatNotifications(updated?.settings)
+      ].join("\n"),
+      createNotificationsMenu(updated?.settings)
+    );
+  }
+
   async function showToday(ctx) {
     if (!(await requireActiveAccess(ctx))) return;
     const summary = databaseService.getTodaySummary(ctx.from.id);
@@ -1853,6 +1867,7 @@ async function promptNextMeal(ctx) {
   registerMenuAction("menu:notifications", showNotifications);
   registerMenuAction("menu:notifications_edit", promptNotificationsMode);
   registerMenuAction("menu:notifications_toggle", toggleNotifications);
+  bot.action("menu:notifications_quick_disable", quickDisableNotifications);
   registerMenuAction("menu:today", showToday);
   registerMenuAction("menu:history", showHistory);
   registerMenuAction("menu:subscription", showSubscription);

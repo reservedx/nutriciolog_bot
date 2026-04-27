@@ -684,7 +684,13 @@ export async function createDatabaseService({ databasePath }) {
         const profileReminderSentToday =
           lastProfileReminderDate && toLocalDateKey(lastProfileReminderDate, appTimeZone) === todayKey;
 
-        if (profileIncomplete && profileReminderEnabled && isValidTimeString(profileReminderTime) && !profileReminderSentToday && currentTime >= profileReminderTime) {
+        if (
+          profileIncomplete &&
+          profileReminderEnabled &&
+          isValidTimeString(profileReminderTime) &&
+          !profileReminderSentToday &&
+          currentTime >= profileReminderTime
+        ) {
           due.push({
             userId: row.user_id,
             telegramUserId: row.telegram_user_id,
@@ -692,6 +698,7 @@ export async function createDatabaseService({ databasePath }) {
             mealKey: "profile_setup",
             scheduledTime: profileReminderTime
           });
+          continue;
         }
 
         const loggedMeals = new Set(
@@ -710,6 +717,7 @@ export async function createDatabaseService({ databasePath }) {
             .map((entry) => String(entry.meal_type || "").toLowerCase())
         );
 
+        const dueMealCandidates = [];
         for (const mealKey of ["breakfast", "lunch", "dinner"]) {
           const scheduledTime = row[mealTimes[mealKey]];
           const lastSentAt = row[mealColumns[mealKey]];
@@ -722,7 +730,7 @@ export async function createDatabaseService({ databasePath }) {
           }
 
           if (currentTime >= scheduledTime) {
-            due.push({
+            dueMealCandidates.push({
               userId: row.user_id,
               telegramUserId: row.telegram_user_id,
               displayName: row.display_name,
@@ -730,6 +738,11 @@ export async function createDatabaseService({ databasePath }) {
               scheduledTime
             });
           }
+        }
+
+        if (dueMealCandidates.length > 0) {
+          dueMealCandidates.sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
+          due.push(dueMealCandidates[dueMealCandidates.length - 1]);
         }
       }
 
