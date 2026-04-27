@@ -307,7 +307,7 @@ function formatProfile(profile) {
 function formatNotifications(settings) {
   const breakfastTime = settings?.breakfast_time || "10:00";
   const lunchTime = settings?.lunch_time || "13:00";
-  const dinnerTime = settings?.dinner_time || "18:00";
+  const dinnerTime = settings?.dinner_time || "20:00";
   const status = Number(settings?.enabled ?? 1) === 1 ? "включены" : "выключены";
 
   return [
@@ -1234,7 +1234,7 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
         "завтрак | обед | ужин",
         "",
         "Пример:",
-        "10:00 | 13:00 | 18:00"
+        "10:00 | 13:00 | 20:00"
       ].join("\n"),
       createNotificationsMenu(data?.settings)
     );
@@ -1668,7 +1668,7 @@ async function promptNextMeal(ctx) {
           "Формат команды:",
           "/setnotifications завтрак | обед | ужин",
           "Пример:",
-          "/setnotifications 10:00 | 13:00 | 18:00"
+          "/setnotifications 10:00 | 13:00 | 20:00"
         ].join("\n"),
         createNotificationsMenu(current?.settings)
       );
@@ -2301,7 +2301,7 @@ async function promptNextMeal(ctx) {
           [
             "Не смог разобрать расписание.",
             "Используй формат:",
-            "10:00 | 13:00 | 18:00"
+            "10:00 | 13:00 | 20:00"
           ].join("\n"),
           createNotificationsMenu(current?.settings)
         );

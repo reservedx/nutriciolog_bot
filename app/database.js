@@ -228,7 +228,7 @@ export async function createDatabaseService({ databasePath }) {
       enabled INTEGER NOT NULL DEFAULT 1,
       breakfast_time TEXT NOT NULL DEFAULT '10:00',
       lunch_time TEXT NOT NULL DEFAULT '13:00',
-      dinner_time TEXT NOT NULL DEFAULT '18:00',
+      dinner_time TEXT NOT NULL DEFAULT '20:00',
       profile_reminder_enabled INTEGER NOT NULL DEFAULT 1,
       profile_reminder_time TEXT NOT NULL DEFAULT '11:00',
       last_breakfast_sent_at TEXT,
@@ -284,7 +284,7 @@ export async function createDatabaseService({ databasePath }) {
     db.exec("ALTER TABLE notification_settings ADD COLUMN lunch_time TEXT NOT NULL DEFAULT '13:00'");
   }
   if (!notificationColumns.some((column) => column.name === "dinner_time")) {
-    db.exec("ALTER TABLE notification_settings ADD COLUMN dinner_time TEXT NOT NULL DEFAULT '18:00'");
+    db.exec("ALTER TABLE notification_settings ADD COLUMN dinner_time TEXT NOT NULL DEFAULT '20:00'");
   }
   if (!notificationColumns.some((column) => column.name === "profile_reminder_enabled")) {
     db.exec("ALTER TABLE notification_settings ADD COLUMN profile_reminder_enabled INTEGER NOT NULL DEFAULT 1");
@@ -311,6 +311,11 @@ export async function createDatabaseService({ databasePath }) {
   if (!notificationColumns.some((column) => column.name === "last_profile_reminder_sent_at")) {
     db.exec("ALTER TABLE notification_settings ADD COLUMN last_profile_reminder_sent_at TEXT");
   }
+  db.exec(`
+    UPDATE notification_settings
+    SET dinner_time = '20:00'
+    WHERE dinner_time = '18:00'
+  `);
 
   db.run(
     `
@@ -337,7 +342,7 @@ export async function createDatabaseService({ databasePath }) {
           profile_reminder_enabled,
           profile_reminder_time,
           updated_at
-        ) VALUES (?, 1, '10:00', '13:00', '18:00', 1, '11:00', CURRENT_TIMESTAMP)
+        ) VALUES (?, 1, '10:00', '13:00', '20:00', 1, '11:00', CURRENT_TIMESTAMP)
         ON CONFLICT(user_id) DO NOTHING
       `,
       [userId]
@@ -567,7 +572,7 @@ export async function createDatabaseService({ databasePath }) {
         const current = getOne("SELECT * FROM notification_settings WHERE user_id = ?", [user.id]);
         const nextBreakfastTime = isValidTimeString(updates.breakfast_time) ? updates.breakfast_time : current.breakfast_time || "10:00";
         const nextLunchTime = isValidTimeString(updates.lunch_time) ? updates.lunch_time : current.lunch_time || "13:00";
-        const nextDinnerTime = isValidTimeString(updates.dinner_time) ? updates.dinner_time : current.dinner_time || "18:00";
+        const nextDinnerTime = isValidTimeString(updates.dinner_time) ? updates.dinner_time : current.dinner_time || "20:00";
         const nextProfileReminderTime = isValidTimeString(updates.profile_reminder_time)
           ? updates.profile_reminder_time
           : current.profile_reminder_time || "11:00";
@@ -596,7 +601,7 @@ export async function createDatabaseService({ databasePath }) {
             ? null
             : current.last_lunch_sent_at || null;
         const dinnerReset =
-          (typeof updates.dinner_time === "string" && nextDinnerTime !== (current.dinner_time || "18:00")) ||
+          (typeof updates.dinner_time === "string" && nextDinnerTime !== (current.dinner_time || "20:00")) ||
           (typeof updates.enabled === "boolean" && nextEnabled === 1 && Number(current.enabled ?? 1) !== 1)
             ? null
             : current.last_dinner_sent_at || null;
