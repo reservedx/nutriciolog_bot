@@ -736,6 +736,112 @@ export async function createDatabaseService({ databasePath }) {
       return due;
     },
 
+    getReminderDiagnostics(telegramUserId, now = new Date()) {
+      const user = getUserByIdentifier(telegramUserId);
+      if (!user) return null;
+
+      ensureNotificationSettingsForUser(user.id);
+      const settings = getOne(
+        `
+          SELECT
+            notification_settings.*,
+            users.telegram_user_id,
+            users.display_name,
+            users.goal,
+            users.daily_calories
+          FROM notification_settings
+          JOIN users ON users.id = notification_settings.user_id
+          WHERE users.id = ?
+        `,
+        [user.id]
+      );
+
+      if (!settings) {
+        return null;
+      }
+
+      const todayKey = toLocalDateKey(now, appTimeZone);
+      const currentTime = toLocalTimeKey(now, appTimeZone);
+
+      const loggedMeals = getMany(
+        `
+          SELECT meal_type, created_at
+          FROM meal_entries
+          WHERE user_id = ? AND datetime(created_at) >= datetime('now', '-2 days')
+        `,
+        [user.id]
+      )
+        .filter((entry) => {
+          const entryDate = parseSqliteDateTime(entry.created_at);
+          return entryDate && toLocalDateKey(entryDate, appTimeZone) === todayKey;
+        })
+        .map((entry) => String(entry.meal_type || "").toLowerCase());
+
+      function sentToday(lastSentAt) {
+        const sentDate = parseSqliteDateTime(lastSentAt);
+        return Boolean(sentDate && toLocalDateKey(sentDate, appTimeZone) === todayKey);
+      }
+
+      const profileIncomplete = !settings.daily_calories || !settings.goal;
+
+      return {
+        telegramUserId: settings.telegram_user_id,
+        displayName: settings.display_name,
+        nowIso: now.toISOString(),
+        todayKey,
+        currentTime,
+        enabled: Number(settings.enabled ?? 1) === 1,
+        loggedMeals,
+        profileReminder: {
+          enabled: Number(settings.profile_reminder_enabled ?? 1) === 1,
+          scheduledTime: settings.profile_reminder_time,
+          profileIncomplete,
+          alreadySentToday: sentToday(settings.last_profile_reminder_sent_at),
+          due:
+            profileIncomplete &&
+            Number(settings.profile_reminder_enabled ?? 1) === 1 &&
+            isValidTimeString(settings.profile_reminder_time) &&
+            !sentToday(settings.last_profile_reminder_sent_at) &&
+            currentTime >= settings.profile_reminder_time
+        },
+        meals: {
+          breakfast: {
+            scheduledTime: settings.breakfast_time,
+            alreadyLogged: loggedMeals.includes("завтрак"),
+            alreadySentToday: sentToday(settings.last_breakfast_sent_at),
+            due:
+              Number(settings.enabled ?? 1) === 1 &&
+              isValidTimeString(settings.breakfast_time) &&
+              !loggedMeals.includes("завтрак") &&
+              !sentToday(settings.last_breakfast_sent_at) &&
+              currentTime >= settings.breakfast_time
+          },
+          lunch: {
+            scheduledTime: settings.lunch_time,
+            alreadyLogged: loggedMeals.includes("обед"),
+            alreadySentToday: sentToday(settings.last_lunch_sent_at),
+            due:
+              Number(settings.enabled ?? 1) === 1 &&
+              isValidTimeString(settings.lunch_time) &&
+              !loggedMeals.includes("обед") &&
+              !sentToday(settings.last_lunch_sent_at) &&
+              currentTime >= settings.lunch_time
+          },
+          dinner: {
+            scheduledTime: settings.dinner_time,
+            alreadyLogged: loggedMeals.includes("ужин"),
+            alreadySentToday: sentToday(settings.last_dinner_sent_at),
+            due:
+              Number(settings.enabled ?? 1) === 1 &&
+              isValidTimeString(settings.dinner_time) &&
+              !loggedMeals.includes("ужин") &&
+              !sentToday(settings.last_dinner_sent_at) &&
+              currentTime >= settings.dinner_time
+          }
+        }
+      };
+    },
+
     markNotificationSent(telegramUserId, mealKey, sentAt = new Date()) {
       const user = getUserByIdentifier(telegramUserId);
       if (!user) return false;

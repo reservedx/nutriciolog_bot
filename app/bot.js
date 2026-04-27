@@ -604,6 +604,35 @@ function formatAdminStats(stats) {
   ].join("\n");
 }
 
+function formatReminderDiagnostics(diagnostics) {
+  if (!diagnostics) {
+    return "Не смог получить диагностику напоминаний.";
+  }
+
+  const formatFlag = (value) => (value ? "да" : "нет");
+
+  return [
+    "Диагностика напоминаний",
+    "",
+    `Сейчас: ${diagnostics.currentTime}`,
+    `Дата: ${diagnostics.todayKey}`,
+    `Напоминания включены: ${formatFlag(diagnostics.enabled)}`,
+    `Лог приема пищи за сегодня: ${diagnostics.loggedMeals.length > 0 ? diagnostics.loggedMeals.join(", ") : "нет"}`,
+    "",
+    `Обед: ${diagnostics.meals.lunch.scheduledTime}`,
+    `Обед уже записан: ${formatFlag(diagnostics.meals.lunch.alreadyLogged)}`,
+    `Обед уже отправлялся сегодня: ${formatFlag(diagnostics.meals.lunch.alreadySentToday)}`,
+    `Обед считается due: ${formatFlag(diagnostics.meals.lunch.due)}`,
+    "",
+    `Завтрак считается due: ${formatFlag(diagnostics.meals.breakfast.due)}`,
+    `Ужин считается due: ${formatFlag(diagnostics.meals.dinner.due)}`,
+    "",
+    `Профильное напоминание включено: ${formatFlag(diagnostics.profileReminder.enabled)}`,
+    `Профиль заполнен: ${formatFlag(!diagnostics.profileReminder.profileIncomplete)}`,
+    `Профильное напоминание считается due: ${formatFlag(diagnostics.profileReminder.due)}`
+  ].join("\n");
+}
+
 function parseProfileCommand(text) {
   const payload = text.replace("/setprofile", "").trim();
   const parts = payload.split("|").map((part) => part.trim());
@@ -962,6 +991,49 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
 
     const stats = databaseService.getAdminStats();
     return sendScreen(ctx, formatAdminStats(stats), createHomeMenu(databaseService.getUserByTelegramId(ctx.from.id)));
+  }
+
+  async function showReminderDiagnostics(ctx) {
+    databaseService.ensureUser(ctx.from);
+
+    if (!isAdmin(ctx)) {
+      return sendScreen(ctx, "Эта команда доступна только владельцу.");
+    }
+
+    const diagnostics = databaseService.getReminderDiagnostics(ctx.from.id);
+    return sendScreen(ctx, formatReminderDiagnostics(diagnostics), createNotificationsMenu(databaseService.getNotificationSettings(ctx.from.id)?.settings));
+  }
+
+  async function sendTestReminder(ctx, mealKey) {
+    databaseService.ensureUser(ctx.from);
+
+    if (!isAdmin(ctx)) {
+      return sendScreen(ctx, "Эта команда доступна только владельцу.");
+    }
+
+    const messages = {
+      breakfast: "Доброе утро! Не забудь добавить свой завтрак.\n\nЯ сразу учту его в дневнике, КБЖУ и прогрессе за день.",
+      lunch: "Напоминаю про обед. Добавь прием пищи, чтобы дневник был точнее.\n\nЯ сразу учту его в дневнике, КБЖУ и прогрессе за день.",
+      dinner: "Время ужина. Если уже поел, добавь прием пищи в дневник.\n\nЯ сразу учту его в дневнике, КБЖУ и прогрессе за день.",
+      profile_setup:
+        "Профиль пока не заполнен. Заполни его, и я начну считать твою норму калорий и помогу вести дневник питания."
+    };
+
+    if (!messages[mealKey]) {
+      return sendScreen(ctx, "Используй: /testreminder breakfast | lunch | dinner | profile");
+    }
+
+    const extra =
+      mealKey === "profile_setup"
+        ? {
+            reply_markup: {
+              inline_keyboard: [[{ text: "Заполнить профиль", callback_data: "menu:setup" }]]
+            }
+          }
+        : undefined;
+
+    await ctx.telegram.sendMessage(ctx.from.id, messages[mealKey], extra);
+    return sendScreen(ctx, `Тестовое напоминание отправлено: ${mealKey}`, createNotificationsMenu(databaseService.getNotificationSettings(ctx.from.id)?.settings));
   }
 
   async function createSubscriptionInvoiceLink(ctx) {
@@ -1592,6 +1664,18 @@ async function promptNextMeal(ctx) {
   bot.command("progress", showProgress);
   bot.command("quality", sendDietQuality);
   bot.command("adminstats", showAdminStats);
+  bot.command("debugreminders", showReminderDiagnostics);
+  bot.command("testreminder", async (ctx) => {
+    const payload = ctx.message.text.replace("/testreminder", "").trim().toLowerCase();
+    const mealKeyMap = {
+      breakfast: "breakfast",
+      lunch: "lunch",
+      dinner: "dinner",
+      profile: "profile_setup",
+      profile_setup: "profile_setup"
+    };
+    return sendTestReminder(ctx, mealKeyMap[payload] || "");
+  });
   bot.command("nextmeal", async (ctx) => {
     if (!(await requireActiveAccess(ctx))) return;
     const payload = ctx.message.text.replace("/nextmeal", "").trim().toLowerCase();
