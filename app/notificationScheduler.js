@@ -83,10 +83,6 @@ export function startNotificationScheduler({ bot, databaseService, intervalMs = 
     });
   }, intervalMs);
 
-  if (typeof timer.unref === "function") {
-    timer.unref();
-  }
-
   tick().catch((error) => {
     console.error("Notification scheduler initial tick failed:", error);
   });

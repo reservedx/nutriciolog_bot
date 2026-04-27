@@ -38,12 +38,14 @@ async function main() {
     telegramBotUsername: process.env.TELEGRAM_BOT_USERNAME || null
   });
 
-  await webServer.start();
-  await bot.launch();
   const notificationScheduler = startNotificationScheduler({
     bot,
     databaseService
   });
+  console.log("Notification scheduler initialized");
+
+  await webServer.start();
+  await bot.launch();
   console.log(`Bot is running in polling mode on port ${config.port}`);
 
   process.once("SIGINT", () => {
