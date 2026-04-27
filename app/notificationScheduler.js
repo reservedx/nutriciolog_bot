@@ -13,8 +13,8 @@ function buildReminderPayload(reminder) {
       extra: {
         reply_markup: {
           inline_keyboard: [
-            [{ text: "Заполнить профиль", callback_data: "menu:setup" }],
-            [{ text: "Отключить напоминания", callback_data: "menu:notifications_quick_disable" }]
+            [{ text: "Заполнить профиль", callback_data: "reminder:setup" }],
+            [{ text: "Отключить напоминания", callback_data: "reminder:disable" }]
           ]
         }
       }
@@ -28,16 +28,16 @@ function buildReminderPayload(reminder) {
       "Я сразу учту его в дневнике, КБЖУ и прогрессе за день."
     ].join("\n"),
     extra: {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: "Добавить прием пищи", callback_data: "guide:add_food" },
-            { text: "Изменить расписание", callback_data: "menu:notifications_edit" }
-          ],
-          [{ text: "Отключить напоминания", callback_data: "menu:notifications_quick_disable" }]
-        ]
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: "Добавить прием пищи", callback_data: "reminder:add_food" },
+              { text: "Изменить расписание", callback_data: "reminder:edit_schedule" }
+            ],
+            [{ text: "Отключить напоминания", callback_data: "reminder:disable" }]
+          ]
+        }
       }
-    }
   };
 }
 
@@ -78,6 +78,9 @@ export function startNotificationScheduler({ bot, databaseService, intervalMs = 
           const payload = buildReminderPayload(reminder);
           console.log(`Sending ${reminder.mealKey} reminder to ${reminder.telegramUserId} at ${reminder.scheduledTime}`);
           await bot.telegram.sendMessage(reminder.telegramUserId, payload.text, payload.extra);
+          databaseService.logNotificationEvent(reminder.telegramUserId, reminder.mealKey, "sent", {
+            scheduledTime: reminder.scheduledTime
+          });
           databaseService.markNotificationSent(reminder.telegramUserId, reminder.mealKey, new Date());
         } catch (error) {
           console.error(`Failed to send ${reminder.mealKey} reminder to ${reminder.telegramUserId}:`, error);

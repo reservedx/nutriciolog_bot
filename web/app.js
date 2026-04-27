@@ -66,6 +66,8 @@ const el = {
   adminUsersBlock: $("#adminUsersBlock"),
   adminPaymentsBlock: $("#adminPaymentsBlock"),
   adminActiveUsersBlock: $("#adminActiveUsersBlock"),
+  adminNotificationsGrid: $("#adminNotificationsGrid"),
+  adminNotificationsBlock: $("#adminNotificationsBlock"),
   tabButtons: $$(".tab-button"),
   tabPanels: $$(".tab-panel"),
   rangeButtons: $$(".range-button"),
@@ -846,6 +848,51 @@ function renderAdminDashboard(adminDashboard) {
         `${user.telegram_username ? `@${user.telegram_username}` : "без username"} · ${user.calories_logged || 0} ккал суммарно${user.last_meal_at ? ` · последний прием ${fmtDateLong(user.last_meal_at)}` : ""}`
       )
     )
+  );
+
+  const notifications = adminDashboard.notifications || {};
+  const todayNotifications = notifications.today || {};
+  const weekNotifications = notifications.week || {};
+  const monthNotifications = notifications.month || {};
+
+  el.adminNotificationsGrid.innerHTML = "";
+  [
+    summaryCard("Отправлено сегодня", String(todayNotifications.sentCount || 0), "все reminder-ы за сегодня"),
+    summaryCard("Реакция сегодня", String(todayNotifications.reactedUsers || 0), `${todayNotifications.reactionCount || 0} действий`),
+    summaryCard("Отключили сегодня", String(todayNotifications.unsubscribedUsers || 0), `${todayNotifications.unsubscribeCount || 0} отключений`),
+    summaryCard("Отправлено 7 дней", String(weekNotifications.sentCount || 0), `${weekNotifications.reactedUsers || 0} пользователей отреагировали`),
+    summaryCard("Отправлено 30 дней", String(monthNotifications.sentCount || 0), `${monthNotifications.reactedUsers || 0} пользователей отреагировали`),
+    summaryCard("Отключили за 30 дней", String(monthNotifications.unsubscribedUsers || 0), `${monthNotifications.unsubscribeCount || 0} действий отключения`)
+  ].forEach((card) => el.adminNotificationsGrid.append(card));
+
+  fill(
+    el.adminNotificationsBlock,
+    (notifications.recentEvents || []).length
+      ? notifications.recentEvents.map((event) => {
+          const username = event.telegram_username ? `@${event.telegram_username}` : "без username";
+          const actor = event.display_name || "Без имени";
+          const eventLabels = {
+            sent: "Отправлено",
+            clicked_add_food: "Нажал «Добавить прием пищи»",
+            clicked_edit_schedule: "Нажал «Изменить расписание»",
+            clicked_setup: "Нажал «Заполнить профиль»",
+            disabled: "Отключил напоминания"
+          };
+          const reminderLabels = {
+            breakfast: "завтрак",
+            lunch: "обед",
+            dinner: "ужин",
+            profile_setup: "профиль",
+            meal: "еда",
+            reminder: "напоминания"
+          };
+
+          return listItem(
+            `${eventLabels[event.event_type] || event.event_type} · ${reminderLabels[event.reminder_key] || event.reminder_key}`,
+            `${actor} · ${username} · ${fmtDateTime(event.created_at)}`
+          );
+        })
+      : [listItem("Событий по уведомлениям пока нет")]
   );
 }
 

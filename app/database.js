@@ -239,6 +239,16 @@ export async function createDatabaseService({ databasePath }) {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
+
+    CREATE TABLE IF NOT EXISTS notification_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      reminder_key TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      metadata_json TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
   `);
 
   const mealColumns = getMany("PRAGMA table_info(meal_entries)");
@@ -883,6 +893,33 @@ export async function createDatabaseService({ databasePath }) {
       return true;
     },
 
+    logNotificationEvent(telegramUserId, reminderKey, eventType, metadata = null, createdAt = new Date()) {
+      const user = getUserByIdentifier(telegramUserId);
+      if (!user) return false;
+
+      db.run(
+        `
+          INSERT INTO notification_events (
+            user_id,
+            reminder_key,
+            event_type,
+            metadata_json,
+            created_at
+          ) VALUES (?, ?, ?, ?, ?)
+        `,
+        [
+          user.id,
+          String(reminderKey || "unknown"),
+          String(eventType || "unknown"),
+          metadata ? JSON.stringify(metadata) : null,
+          toSqliteDateTime(createdAt)
+        ]
+      );
+
+      persist();
+      return true;
+    },
+
     saveMealEntry(entry) {
       db.run(
         `
@@ -1223,6 +1260,75 @@ export async function createDatabaseService({ databasePath }) {
       };
     },
 
+    getNotificationAnalytics(days = 1) {
+      const normalizedDays = Math.max(1, Number(days) || 1);
+      const since =
+        normalizedDays === 1
+          ? startOfDayIso()
+          : toSqliteDateTime(new Date(Date.now() - (normalizedDays - 1) * 24 * 60 * 60 * 1000));
+
+      const sentCount = Number(
+        getOne(
+          "SELECT COUNT(*) AS count FROM notification_events WHERE event_type = 'sent' AND created_at >= ?",
+          [since]
+        )?.count || 0
+      );
+      const reactedUsers = Number(
+        getOne(
+          `
+            SELECT COUNT(DISTINCT user_id) AS count
+            FROM notification_events
+            WHERE event_type IN ('clicked_add_food', 'clicked_edit_schedule', 'clicked_setup')
+              AND created_at >= ?
+          `,
+          [since]
+        )?.count || 0
+      );
+      const reactionCount = Number(
+        getOne(
+          `
+            SELECT COUNT(*) AS count
+            FROM notification_events
+            WHERE event_type IN ('clicked_add_food', 'clicked_edit_schedule', 'clicked_setup')
+              AND created_at >= ?
+          `,
+          [since]
+        )?.count || 0
+      );
+      const unsubscribedUsers = Number(
+        getOne(
+          `
+            SELECT COUNT(DISTINCT user_id) AS count
+            FROM notification_events
+            WHERE event_type = 'disabled'
+              AND created_at >= ?
+          `,
+          [since]
+        )?.count || 0
+      );
+      const unsubscribeCount = Number(
+        getOne(
+          `
+            SELECT COUNT(*) AS count
+            FROM notification_events
+            WHERE event_type = 'disabled'
+              AND created_at >= ?
+          `,
+          [since]
+        )?.count || 0
+      );
+
+      return {
+        days: normalizedDays,
+        since,
+        sentCount,
+        reactedUsers,
+        reactionCount,
+        unsubscribedUsers,
+        unsubscribeCount
+      };
+    },
+
     getAdminDashboard() {
       const stats = this.getAdminStats();
       const registrations = getMany(
@@ -1295,13 +1401,34 @@ export async function createDatabaseService({ databasePath }) {
         `
       );
 
+      const recentNotificationEvents = getMany(
+        `
+          SELECT
+            notification_events.reminder_key,
+            notification_events.event_type,
+            notification_events.created_at,
+            users.display_name,
+            users.telegram_username
+          FROM notification_events
+          JOIN users ON users.id = notification_events.user_id
+          ORDER BY datetime(notification_events.created_at) DESC
+          LIMIT 12
+        `
+      );
+
       return {
         ...stats,
         registrations,
         mealsByDay: meals,
         weightsByDay: weights,
         activeUsers,
-        recentPayments
+        recentPayments,
+        notifications: {
+          today: this.getNotificationAnalytics(1),
+          week: this.getNotificationAnalytics(7),
+          month: this.getNotificationAnalytics(30),
+          recentEvents: recentNotificationEvents
+        }
       };
     },
 

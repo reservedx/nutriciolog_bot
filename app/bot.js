@@ -1271,6 +1271,41 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     );
   }
 
+  async function handleReminderAddFood(ctx) {
+    if (!(await requireActiveAccess(ctx))) return;
+    databaseService.logNotificationEvent(ctx.from.id, "meal", "clicked_add_food", {
+      source: "reminder"
+    });
+    await safeAnswerCbQuery(ctx, "Открываю добавление еды");
+    return showAddFoodGuide(ctx);
+  }
+
+  async function handleReminderEditSchedule(ctx) {
+    if (!(await requireActiveAccess(ctx))) return;
+    databaseService.logNotificationEvent(ctx.from.id, "meal", "clicked_edit_schedule", {
+      source: "reminder"
+    });
+    await safeAnswerCbQuery(ctx, "Открываю расписание");
+    return promptNotificationsMode(ctx);
+  }
+
+  async function handleReminderSetup(ctx) {
+    if (!(await requireActiveAccess(ctx))) return;
+    databaseService.logNotificationEvent(ctx.from.id, "profile_setup", "clicked_setup", {
+      source: "reminder"
+    });
+    await safeAnswerCbQuery(ctx, "Открываю настройку профиля");
+    return startProfileSetup(ctx);
+  }
+
+  async function handleReminderDisable(ctx) {
+    if (!(await requireActiveAccess(ctx))) return;
+    databaseService.logNotificationEvent(ctx.from.id, "reminder", "disabled", {
+      source: "reminder"
+    });
+    return quickDisableNotifications(ctx);
+  }
+
   async function showToday(ctx) {
     if (!(await requireActiveAccess(ctx))) return;
     const summary = databaseService.getTodaySummary(ctx.from.id);
@@ -1868,6 +1903,10 @@ async function promptNextMeal(ctx) {
   registerMenuAction("menu:notifications_edit", promptNotificationsMode);
   registerMenuAction("menu:notifications_toggle", toggleNotifications);
   bot.action("menu:notifications_quick_disable", quickDisableNotifications);
+  bot.action("reminder:add_food", handleReminderAddFood);
+  bot.action("reminder:edit_schedule", handleReminderEditSchedule);
+  bot.action("reminder:setup", handleReminderSetup);
+  bot.action("reminder:disable", handleReminderDisable);
   registerMenuAction("menu:today", showToday);
   registerMenuAction("menu:history", showHistory);
   registerMenuAction("menu:subscription", showSubscription);
