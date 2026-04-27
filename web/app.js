@@ -67,6 +67,7 @@ const el = {
   adminPaymentsBlock: $("#adminPaymentsBlock"),
   adminActiveUsersBlock: $("#adminActiveUsersBlock"),
   adminNotificationsGrid: $("#adminNotificationsGrid"),
+  adminNotificationsTable: $("#adminNotificationsTable"),
   adminNotificationsBlock: $("#adminNotificationsBlock"),
   tabButtons: $$(".tab-button"),
   tabPanels: $$(".tab-panel"),
@@ -864,6 +865,12 @@ function renderAdminDashboard(adminDashboard) {
   const todayNotifications = notifications.today || {};
   const weekNotifications = notifications.week || {};
   const monthNotifications = notifications.month || {};
+  const reminderTypeLabels = {
+    breakfast: "Завтрак",
+    lunch: "Обед",
+    dinner: "Ужин",
+    profile_setup: "Профиль"
+  };
 
   el.adminNotificationsGrid.innerHTML = "";
   [
@@ -874,6 +881,59 @@ function renderAdminDashboard(adminDashboard) {
     summaryCard("Отправлено 30 дней", String(monthNotifications.sentCount || 0), `${monthNotifications.reactedUsers || 0} пользователей отреагировали`),
     summaryCard("Отключили за 30 дней", String(monthNotifications.unsubscribedUsers || 0), `${monthNotifications.unsubscribeCount || 0} действий отключения`)
   ].forEach((card) => el.adminNotificationsGrid.append(card));
+
+  const reminderKeys = Object.keys(reminderTypeLabels).filter((key) => {
+    const today = todayNotifications.byReminder?.[key];
+    const week = weekNotifications.byReminder?.[key];
+    const month = monthNotifications.byReminder?.[key];
+    return Boolean(today || week || month);
+  });
+
+  if (reminderKeys.length) {
+    el.adminNotificationsTable.innerHTML = `
+      <div class="notifications-table-head">
+        <strong>По типам уведомлений</strong>
+        <div class="status">Видно, что именно отправлялось: завтрак, обед, ужин или напоминание заполнить профиль.</div>
+      </div>
+      <div class="notifications-table-wrap">
+        <table class="notifications-table">
+          <thead>
+            <tr>
+              <th>Тип</th>
+              <th>Сегодня</th>
+              <th>7 дней</th>
+              <th>30 дней</th>
+              <th>Реакции 30 дней</th>
+              <th>Отключения 30 дней</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${reminderKeys
+              .map((key) => {
+                const today = todayNotifications.byReminder?.[key] || {};
+                const week = weekNotifications.byReminder?.[key] || {};
+                const month = monthNotifications.byReminder?.[key] || {};
+
+                return `
+                  <tr>
+                    <td>${reminderTypeLabels[key] || key}</td>
+                    <td>${today.sentCount || 0}</td>
+                    <td>${week.sentCount || 0}</td>
+                    <td>${month.sentCount || 0}</td>
+                    <td>${month.reactionCount || 0}</td>
+                    <td>${month.unsubscribeCount || 0}</td>
+                  </tr>
+                `;
+              })
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } else {
+    el.adminNotificationsTable.innerHTML =
+      '<div class="chart-empty">По типам уведомлений пока нет данных. Таблица заполнится после первых отправок.</div>';
+  }
 
   fill(
     el.adminNotificationsBlock,

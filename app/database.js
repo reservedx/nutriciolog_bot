@@ -1317,6 +1317,27 @@ export async function createDatabaseService({ databasePath }) {
           [since]
         )?.count || 0
       );
+      const byReminder = getMany(
+        `
+          SELECT
+            reminder_key,
+            SUM(CASE WHEN event_type = 'sent' THEN 1 ELSE 0 END) AS sent_count,
+            SUM(CASE WHEN event_type IN ('clicked_add_food', 'clicked_edit_schedule', 'clicked_setup') THEN 1 ELSE 0 END) AS reaction_count,
+            SUM(CASE WHEN event_type = 'disabled' THEN 1 ELSE 0 END) AS unsubscribe_count
+          FROM notification_events
+          WHERE created_at >= ?
+          GROUP BY reminder_key
+          ORDER BY reminder_key ASC
+        `,
+        [since]
+      ).reduce((acc, row) => {
+        acc[row.reminder_key] = {
+          sentCount: Number(row.sent_count || 0),
+          reactionCount: Number(row.reaction_count || 0),
+          unsubscribeCount: Number(row.unsubscribe_count || 0)
+        };
+        return acc;
+      }, {});
 
       return {
         days: normalizedDays,
@@ -1325,7 +1346,8 @@ export async function createDatabaseService({ databasePath }) {
         reactedUsers,
         reactionCount,
         unsubscribedUsers,
-        unsubscribeCount
+        unsubscribeCount,
+        byReminder
       };
     },
 
