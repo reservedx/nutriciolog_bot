@@ -13,10 +13,7 @@ function buildReminderPayload(reminder) {
       extra: {
         reply_markup: {
           inline_keyboard: [
-            [
-              { text: "Заполнить профиль", callback_data: "menu:setup" },
-              { text: "Изменить расписание", callback_data: "menu:notifications_edit" }
-            ],
+            [{ text: "Заполнить профиль", callback_data: "menu:setup" }],
             [{ text: "Отключить напоминания", callback_data: "menu:notifications_quick_disable" }]
           ]
         }
