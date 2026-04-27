@@ -33,22 +33,31 @@ export function startNotificationScheduler({ bot, databaseService, intervalMs = 
     throw new Error("Notification scheduler requires bot.telegram and databaseService");
   }
 
+  console.log(`Notification scheduler started with interval ${intervalMs}ms`);
   let isRunning = false;
+  let tickCount = 0;
 
   async function tick() {
     if (isRunning) {
+      console.log("Notification scheduler skipped tick because previous tick is still running");
       return;
     }
 
     isRunning = true;
     try {
-      const dueNotifications = databaseService.getDueNotifications(new Date());
+      tickCount += 1;
+      const now = new Date();
+      console.log(`Notification scheduler tick #${tickCount} at ${now.toISOString()}`);
+      const dueNotifications = databaseService.getDueNotifications(now);
       if (dueNotifications.length > 0) {
         console.log(`Notification scheduler found ${dueNotifications.length} due reminder(s).`);
+      } else {
+        console.log("Notification scheduler found no due reminders.");
       }
 
       for (const reminder of dueNotifications) {
         if (!reminderMessages[reminder.mealKey]) {
+          console.warn(`Notification scheduler skipped unknown mealKey: ${reminder.mealKey}`);
           continue;
         }
 
