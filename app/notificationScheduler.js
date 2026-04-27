@@ -28,7 +28,7 @@ function buildReminderPayload(reminder) {
   };
 }
 
-export function startNotificationScheduler({ bot, databaseService, intervalMs = 60_000 }) {
+export function startNotificationScheduler({ bot, databaseService, intervalMs = 15_000 }) {
   if (!bot?.telegram || !databaseService?.getDueNotifications) {
     throw new Error("Notification scheduler requires bot.telegram and databaseService");
   }
@@ -43,6 +43,9 @@ export function startNotificationScheduler({ bot, databaseService, intervalMs = 
     isRunning = true;
     try {
       const dueNotifications = databaseService.getDueNotifications(new Date());
+      if (dueNotifications.length > 0) {
+        console.log(`Notification scheduler found ${dueNotifications.length} due reminder(s).`);
+      }
 
       for (const reminder of dueNotifications) {
         if (!reminderMessages[reminder.mealKey]) {

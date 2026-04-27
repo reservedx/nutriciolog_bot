@@ -549,49 +549,86 @@ export async function createDatabaseService({ databasePath }) {
       return { user, settings };
     },
 
-    updateNotificationSettings(telegramUserId, updates = {}) {
-      const user = getUserByIdentifier(telegramUserId);
-      if (!user) return null;
+      updateNotificationSettings(telegramUserId, updates = {}) {
+        const user = getUserByIdentifier(telegramUserId);
+        if (!user) return null;
 
-      ensureNotificationSettingsForUser(user.id);
-      const current = getOne("SELECT * FROM notification_settings WHERE user_id = ?", [user.id]);
-      const next = {
-        enabled: typeof updates.enabled === "boolean" ? (updates.enabled ? 1 : 0) : Number(current.enabled ?? 1),
-        breakfast_time: isValidTimeString(updates.breakfast_time) ? updates.breakfast_time : current.breakfast_time || "10:00",
-        lunch_time: isValidTimeString(updates.lunch_time) ? updates.lunch_time : current.lunch_time || "13:00",
-        dinner_time: isValidTimeString(updates.dinner_time) ? updates.dinner_time : current.dinner_time || "18:00",
-        profile_reminder_enabled:
+        ensureNotificationSettingsForUser(user.id);
+        const current = getOne("SELECT * FROM notification_settings WHERE user_id = ?", [user.id]);
+        const nextBreakfastTime = isValidTimeString(updates.breakfast_time) ? updates.breakfast_time : current.breakfast_time || "10:00";
+        const nextLunchTime = isValidTimeString(updates.lunch_time) ? updates.lunch_time : current.lunch_time || "13:00";
+        const nextDinnerTime = isValidTimeString(updates.dinner_time) ? updates.dinner_time : current.dinner_time || "18:00";
+        const nextProfileReminderTime = isValidTimeString(updates.profile_reminder_time)
+          ? updates.profile_reminder_time
+          : current.profile_reminder_time || "11:00";
+        const nextEnabled = typeof updates.enabled === "boolean" ? (updates.enabled ? 1 : 0) : Number(current.enabled ?? 1);
+        const nextProfileReminderEnabled =
           typeof updates.profile_reminder_enabled === "boolean"
             ? (updates.profile_reminder_enabled ? 1 : 0)
-            : Number(current.profile_reminder_enabled ?? 1),
-        profile_reminder_time: isValidTimeString(updates.profile_reminder_time)
-          ? updates.profile_reminder_time
-          : current.profile_reminder_time || "11:00"
-      };
+            : Number(current.profile_reminder_enabled ?? 1);
+        const next = {
+          enabled: nextEnabled,
+          breakfast_time: nextBreakfastTime,
+          lunch_time: nextLunchTime,
+          dinner_time: nextDinnerTime,
+          profile_reminder_enabled: nextProfileReminderEnabled,
+          profile_reminder_time: nextProfileReminderTime
+        };
 
-      db.run(
-        `
-          UPDATE notification_settings
-          SET
-            enabled = ?,
-            breakfast_time = ?,
-            lunch_time = ?,
-            dinner_time = ?,
-            profile_reminder_enabled = ?,
-            profile_reminder_time = ?,
-            updated_at = CURRENT_TIMESTAMP
-          WHERE user_id = ?
-        `,
-        [
-          next.enabled,
-          next.breakfast_time,
-          next.lunch_time,
-          next.dinner_time,
-          next.profile_reminder_enabled,
-          next.profile_reminder_time,
-          user.id
-        ]
-      );
+        const breakfastReset =
+          (typeof updates.breakfast_time === "string" && nextBreakfastTime !== (current.breakfast_time || "10:00")) ||
+          (typeof updates.enabled === "boolean" && nextEnabled === 1 && Number(current.enabled ?? 1) !== 1)
+            ? null
+            : current.last_breakfast_sent_at || null;
+        const lunchReset =
+          (typeof updates.lunch_time === "string" && nextLunchTime !== (current.lunch_time || "13:00")) ||
+          (typeof updates.enabled === "boolean" && nextEnabled === 1 && Number(current.enabled ?? 1) !== 1)
+            ? null
+            : current.last_lunch_sent_at || null;
+        const dinnerReset =
+          (typeof updates.dinner_time === "string" && nextDinnerTime !== (current.dinner_time || "18:00")) ||
+          (typeof updates.enabled === "boolean" && nextEnabled === 1 && Number(current.enabled ?? 1) !== 1)
+            ? null
+            : current.last_dinner_sent_at || null;
+        const profileReset =
+          (typeof updates.profile_reminder_time === "string" && nextProfileReminderTime !== (current.profile_reminder_time || "11:00")) ||
+          (typeof updates.profile_reminder_enabled === "boolean" &&
+            nextProfileReminderEnabled === 1 &&
+            Number(current.profile_reminder_enabled ?? 1) !== 1)
+            ? null
+            : current.last_profile_reminder_sent_at || null;
+
+        db.run(
+          `
+            UPDATE notification_settings
+            SET
+              enabled = ?,
+              breakfast_time = ?,
+              lunch_time = ?,
+              dinner_time = ?,
+              profile_reminder_enabled = ?,
+              profile_reminder_time = ?,
+              last_breakfast_sent_at = ?,
+              last_lunch_sent_at = ?,
+              last_dinner_sent_at = ?,
+              last_profile_reminder_sent_at = ?,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = ?
+          `,
+          [
+            next.enabled,
+            next.breakfast_time,
+            next.lunch_time,
+            next.dinner_time,
+            next.profile_reminder_enabled,
+            next.profile_reminder_time,
+            breakfastReset,
+            lunchReset,
+            dinnerReset,
+            profileReset,
+            user.id
+          ]
+        );
 
       persist();
       return {
