@@ -13,7 +13,10 @@ function buildReminderPayload(reminder) {
       extra: {
         reply_markup: {
           inline_keyboard: [
-            [{ text: "Заполнить профиль", callback_data: "menu:setup" }],
+            [
+              { text: "Заполнить профиль", callback_data: "menu:setup" },
+              { text: "Изменить расписание", callback_data: "menu:notifications_edit" }
+            ],
             [{ text: "Отключить напоминания", callback_data: "menu:notifications_quick_disable" }]
           ]
         }
@@ -30,7 +33,10 @@ function buildReminderPayload(reminder) {
     extra: {
       reply_markup: {
         inline_keyboard: [
-          [{ text: "Добавить прием пищи", callback_data: "guide:add_food" }],
+          [
+            { text: "Добавить прием пищи", callback_data: "guide:add_food" },
+            { text: "Изменить расписание", callback_data: "menu:notifications_edit" }
+          ],
           [{ text: "Отключить напоминания", callback_data: "menu:notifications_quick_disable" }]
         ]
       }
