@@ -3,7 +3,7 @@ const state = {
   dashboard: null,
   adminDashboard: null,
   activeTab: "overview",
-  chartRange: 30,
+  chartRange: "30",
   isAdmin: false
 };
 
@@ -89,7 +89,11 @@ const fmtDateTime = (value) =>
 
 const fmtNum = (value, digits = 1) => (Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : "0");
 const fmtSigned = (value, suffix = "") => (Number.isFinite(Number(value)) ? `${Number(value) > 0 ? "+" : ""}${Number(value).toFixed(1)}${suffix}` : "—");
-const rangeLabel = (days) => (days === 7 ? "За неделю" : "За месяц");
+const rangeLabel = (range) => {
+  if (String(range) === "7") return "За неделю";
+  if (String(range) === "30") return "За месяц";
+  return "За всё время";
+};
 
 function iconSvg(kind) {
   const icons = {
@@ -234,14 +238,16 @@ function handleQuickAction(action) {
   }
 }
 
-function setChartRange(days) {
-  state.chartRange = days;
-  el.rangeButtons.forEach((button) => button.classList.toggle("active", Number(button.dataset.range) === days));
+function setChartRange(range) {
+  state.chartRange = String(range);
+  el.rangeButtons.forEach((button) => button.classList.toggle("active", button.dataset.range === String(range)));
   renderDashboardSections();
 }
 
-function filterLogs(logs = [], days = 30) {
+function filterLogs(logs = [], range = "30") {
   if (!logs.length) return [];
+  if (String(range) === "all") return logs;
+  const days = Number(range) || 30;
   const cutoff = new Date();
   cutoff.setHours(0, 0, 0, 0);
   cutoff.setDate(cutoff.getDate() - (days - 1));
@@ -576,8 +582,8 @@ function renderProgress(weightLogs, measurementLogs) {
   fill(el.progressBlock, items);
 }
 
-function compareDelta(logs, key, days) {
-  const filtered = filterLogs(logs, days);
+function compareDelta(logs, key, range) {
+  const filtered = filterLogs(logs, range);
   const latest = filtered[0];
   const earliest = filtered[filtered.length - 1];
   if (!latest || !earliest) return null;
@@ -588,10 +594,12 @@ function compareDelta(logs, key, days) {
 }
 
 function renderProgressPremium(weightLogs, measurementLogs) {
-  const weekWeight = compareDelta(weightLogs, "weight", 7);
-  const monthWeight = compareDelta(weightLogs, "weight", 30);
-  const weekWaist = compareDelta(measurementLogs, "waist", 7);
-  const monthWaist = compareDelta(measurementLogs, "waist", 30);
+  const weekWeight = compareDelta(weightLogs, "weight", "7");
+  const monthWeight = compareDelta(weightLogs, "weight", "30");
+  const allWeight = compareDelta(weightLogs, "weight", "all");
+  const weekWaist = compareDelta(measurementLogs, "waist", "7");
+  const monthWaist = compareDelta(measurementLogs, "waist", "30");
+  const allWaist = compareDelta(measurementLogs, "waist", "all");
   const latestWeight = weightLogs[0];
   const latestMeasurement = measurementLogs[0];
 
@@ -611,7 +619,9 @@ function renderProgressPremium(weightLogs, measurementLogs) {
   el.periodCompare.innerHTML = [
     { label: "Вес · 7 дней", value: weekWeight, suffix: " кг", meta: "Сравнение внутри короткого периода" },
     { label: "Вес · 30 дней", value: monthWeight, suffix: " кг", meta: "Показывает общую месячную тенденцию" },
-    { label: "Талия · 30 дней", value: monthWaist, suffix: " см", meta: Number.isFinite(weekWaist) ? `За 7 дней ${fmtSigned(weekWaist, " см")}` : "Недельных данных пока мало" }
+    { label: "Вес · всё время", value: allWeight, suffix: " кг", meta: "Полная динамика по всем доступным записям" },
+    { label: "Талия · 30 дней", value: monthWaist, suffix: " см", meta: Number.isFinite(weekWaist) ? `За 7 дней ${fmtSigned(weekWaist, " см")}` : "Недельных данных пока мало" },
+    { label: "Талия · всё время", value: allWaist, suffix: " см", meta: "Изменение талии по всей истории наблюдений" }
   ]
     .map(
       (item) => `
@@ -1087,7 +1097,7 @@ el.telegramUserId.addEventListener("keydown", (event) => {
   }
 });
 el.tabButtons.forEach((button) => button.addEventListener("click", () => setActiveTab(button.dataset.tab)));
-el.rangeButtons.forEach((button) => button.addEventListener("click", () => setChartRange(Number(button.dataset.range))));
+el.rangeButtons.forEach((button) => button.addEventListener("click", () => setChartRange(button.dataset.range)));
 el.quickActions.forEach((button) => button.addEventListener("click", () => handleQuickAction(button.dataset.action)));
 
 bootstrapTelegramLogin();
