@@ -42,7 +42,6 @@ async function main() {
     bot,
     databaseService
   });
-  console.log("Notification scheduler initialized");
 
   await webServer.start();
   await bot.launch();
