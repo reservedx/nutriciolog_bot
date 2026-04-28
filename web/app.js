@@ -75,17 +75,31 @@ const el = {
   quickActions: $$(".quick-action")
 };
 
+function parseAppDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === "string") {
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value)) {
+      return new Date(value.replace(" ", "T") + "Z");
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return new Date(`${value}T00:00:00Z`);
+    }
+  }
+  return new Date(value);
+}
+
 const fmtDate = (value) =>
-  value ? new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit" }).format(new Date(value)) : "без даты";
+  value ? new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit" }).format(parseAppDate(value)) : "без даты";
 
 const fmtDateLong = (value) =>
   value
-    ? new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value))
+    ? new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" }).format(parseAppDate(value))
     : "без даты";
 
 const fmtDateTime = (value) =>
   value
-    ? new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(value))
+    ? new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(parseAppDate(value))
     : "без даты";
 
 const fmtNum = (value, digits = 1) => (Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : "0");
@@ -252,7 +266,7 @@ function filterLogs(logs = [], range = "30") {
   const cutoff = new Date();
   cutoff.setHours(0, 0, 0, 0);
   cutoff.setDate(cutoff.getDate() - (days - 1));
-  const filtered = logs.filter((log) => new Date(log.created_at) >= cutoff);
+  const filtered = logs.filter((log) => parseAppDate(log.created_at) >= cutoff);
   return filtered.length ? filtered : logs.slice(0, Math.min(logs.length, days));
 }
 
@@ -647,7 +661,7 @@ function renderTimeline(weightLogs, measurementLogs) {
     })
   );
 
-  items.sort((a, b) => new Date(b.date) - new Date(a.date));
+  items.sort((a, b) => parseAppDate(b.date) - parseAppDate(a.date));
   el.progressTimeline.innerHTML = items.length
     ? items
         .slice(0, 12)
