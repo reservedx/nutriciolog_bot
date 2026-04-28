@@ -790,15 +790,16 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
   }
 
   async function safeDeleteCallbackMessage(ctx) {
-    if (!ctx.callbackQuery?.message) return;
+    const message = ctx.callbackQuery?.message;
+    if (!message?.chat?.id || !message?.message_id) return;
     try {
-      await ctx.deleteMessage();
+      await ctx.telegram.deleteMessage(message.chat.id, message.message_id);
     } catch (error) {
-      const message = String(error?.response?.description || error?.message || "").toLowerCase();
+      const description = String(error?.response?.description || error?.message || "").toLowerCase();
       if (
-        message.includes("message can't be deleted") ||
-        message.includes("message to delete not found") ||
-        message.includes("message identifier is not specified")
+        description.includes("message can't be deleted") ||
+        description.includes("message to delete not found") ||
+        description.includes("message identifier is not specified")
       ) {
         return;
       }
