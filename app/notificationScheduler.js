@@ -14,7 +14,8 @@ function buildReminderPayload(reminder) {
         reply_markup: {
           inline_keyboard: [
             [{ text: "Заполнить профиль", callback_data: "reminder:setup" }],
-            [{ text: "Отключить напоминания", callback_data: "reminder:disable" }]
+            [{ text: "Отключить напоминания", callback_data: "reminder:disable" }],
+            [{ text: "В меню", callback_data: "reminder:home" }]
           ]
         }
       }
@@ -34,7 +35,8 @@ function buildReminderPayload(reminder) {
               { text: "Добавить прием пищи", callback_data: "reminder:add_food" },
               { text: "Изменить расписание", callback_data: "reminder:edit_schedule" }
             ],
-            [{ text: "Отключить напоминания", callback_data: "reminder:disable" }]
+            [{ text: "Отключить напоминания", callback_data: "reminder:disable" }],
+            [{ text: "В меню", callback_data: "reminder:home" }]
           ]
         }
       }

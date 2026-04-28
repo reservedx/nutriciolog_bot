@@ -789,6 +789,23 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
     }
   }
 
+  async function safeDeleteCallbackMessage(ctx) {
+    if (!ctx.callbackQuery?.message) return;
+    try {
+      await ctx.deleteMessage();
+    } catch (error) {
+      const message = String(error?.response?.description || error?.message || "").toLowerCase();
+      if (
+        message.includes("message can't be deleted") ||
+        message.includes("message to delete not found") ||
+        message.includes("message identifier is not specified")
+      ) {
+        return;
+      }
+      throw error;
+    }
+  }
+
   function registerMenuAction(action, handler) {
     bot.action(action, async (ctx) => {
       await safeAnswerCbQuery(ctx);
@@ -1304,6 +1321,65 @@ export function createBot({ telegramBotToken, nutritionService, databaseService,
       source: "reminder"
     });
     return quickDisableNotifications(ctx);
+  }
+
+  async function handleReminderHome(ctx) {
+    if (!(await requireActiveAccess(ctx))) return;
+    await safeAnswerCbQuery(ctx, "Открываю меню");
+    await safeDeleteCallbackMessage(ctx);
+    const { profile } = getProfileAndAccess(ctx);
+    const smartTips = getHomeSuggestions(ctx);
+    const today = databaseService.getTodaySummary(ctx.from.id);
+    const consumedCalories = round(today?.totals?.calories || 0);
+    const dailyCalories = round(profile?.daily_calories || 0);
+    const remainingCalories = Math.max(0, dailyCalories - consumedCalories);
+
+    if (profile?.daily_calories) {
+      return ctx.reply(
+        [
+          `Текущий профиль: ${profile.display_name}`,
+          "",
+          `Сегодня съедено: ${consumedCalories} / ${dailyCalories} ккал`,
+          `Осталось на сегодня: ${remainingCalories} ккал`,
+          "",
+          "Сейчас для тебя полезно:",
+          ...smartTips.map((tip) => `• ${tip}`)
+        ].join("\n"),
+        createHomeMenu(profile)
+      );
+    }
+
+    return ctx.reply(
+      [
+        "Привет! 👋",
+        "Я — твой персональный нутрициолог в Telegram 🥑",
+        "",
+        "Помогу тебе легко контролировать питание, считать калории и БЖУ, отслеживать вес и видеть реальный прогресс — без жестких диет и заморочек.",
+        "",
+        "Вот что я умею:",
+        "📸 Анализировать еду по фото или описанию",
+        "📊 Считать калории и БЖУ по фото тарелки или текстом, вести дневник",
+        "📈 Показывать сводку за день и давать разбор",
+        "⚖️ Отслеживать вес и замеры тела",
+        "🧠 Отвечать на вопросы по питанию",
+        "🍽 Подбирать меню на день",
+        "🛒 Проверять состав продуктов в магазине",
+        "",
+        "🚀 С чего начать:",
+        "",
+        "Нажми «Настроить профиль» — я рассчитаю твою норму",
+        "Добавь первый прием пищи",
+        "Загляни в «Мой кабинет», чтобы увидеть результат",
+        "",
+        "👇 Начни прямо сейчас — добавь свою первую еду",
+        "",
+        `Текущий профиль: ${profile.display_name}`,
+        "",
+        "Сейчас для тебя полезно:",
+        ...smartTips.map((tip) => `• ${tip}`)
+      ].join("\n"),
+      createHomeMenu(profile)
+    );
   }
 
   async function showToday(ctx) {
@@ -1907,6 +1983,7 @@ async function promptNextMeal(ctx) {
   bot.action("reminder:edit_schedule", handleReminderEditSchedule);
   bot.action("reminder:setup", handleReminderSetup);
   bot.action("reminder:disable", handleReminderDisable);
+  bot.action("reminder:home", handleReminderHome);
   registerMenuAction("menu:today", showToday);
   registerMenuAction("menu:history", showHistory);
   registerMenuAction("menu:subscription", showSubscription);
